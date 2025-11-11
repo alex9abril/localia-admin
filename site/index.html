@@ -246,48 +246,56 @@
         /* Navigation */
         .nav-buttons {
             position: fixed;
-            bottom: 40px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            gap: 20px;
+            gap: 12px;
         }
         
         .nav-btn {
-            background: var(--eco-green);
+            background: rgba(74, 124, 89, 0.75);
+            backdrop-filter: blur(10px);
             color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 1.1em;
-            font-weight: 600;
-            border-radius: 50px;
+            border: 1px solid rgba(74, 124, 89, 0.3);
+            padding: 10px 24px;
+            font-size: 0.9em;
+            font-weight: 500;
+            border-radius: 30px;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(74, 124, 89, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            opacity: 0.85;
         }
         
         .nav-btn:hover {
-            background: var(--eco-green-light);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(74, 124, 89, 0.4);
+            background: rgba(74, 124, 89, 0.9);
+            opacity: 1;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         .nav-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.3;
             cursor: not-allowed;
         }
         
         /* Slide indicators */
         .slide-indicators {
             position: fixed;
-            bottom: 120px;
+            bottom: 85px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             pointer-events: none;
+            padding: 8px 16px;
+            background: rgba(232, 220, 198, 0.6);
+            backdrop-filter: blur(8px);
+            border-radius: 20px;
+            border: 1px solid rgba(184, 166, 138, 0.2);
         }
         
         .slide-indicators .indicator {
@@ -295,18 +303,22 @@
         }
         
         .indicator {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: rgba(74, 124, 89, 0.4);
+            background: rgba(74, 124, 89, 0.3);
             cursor: pointer;
             transition: all 0.3s;
         }
         
         .indicator.active {
-            background: var(--eco-green);
-            width: 30px;
-            border-radius: 6px;
+            background: rgba(74, 124, 89, 0.7);
+            width: 24px;
+            border-radius: 4px;
+        }
+        
+        .indicator:hover {
+            background: rgba(74, 124, 89, 0.5);
         }
         
         /* Slide specific backgrounds - cardboard with subtle green accents */
@@ -420,12 +432,19 @@
             top: 20px;
             right: 20px;
             z-index: 100;
-            background: rgba(74, 124, 89, 0.9);
+            background: rgba(74, 124, 89, 0.6);
+            backdrop-filter: blur(8px);
             color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            opacity: 0.8;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            opacity: 0.7;
+            border: 1px solid rgba(74, 124, 89, 0.3);
+            transition: all 0.3s;
+        }
+        
+        .keyboard-hint:hover {
+            opacity: 0.9;
         }
     </style>
 </head>
