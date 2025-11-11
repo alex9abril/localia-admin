@@ -6,6 +6,30 @@ Este es un Gantt conceptual con las tareas esenciales del MVP, organizadas en 4 
 
 ---
 
+## 📊 Diagrama de Gantt (Mermaid)
+
+```mermaid
+gantt
+    title LOCALIA MVP - Gantt Conceptual (9 Tareas Principales)
+    dateFormat YYYY-MM-DD
+    section Semana 1
+    Setup Backend y Base de Datos (Dev1)     :a1, 2025-01-13, 5d
+    Setup Frontend Móvil (Dev2)              :a2, 2025-01-13, 5d
+    Setup Frontend Web (Dev3)                :a3, 2025-01-13, 5d
+    section Semana 2
+    API de Pedidos y Notificaciones (Dev1)  :a4, 2025-01-20, 5d
+    App Cliente - Pedidos (Dev2)             :a5, 2025-01-20, 5d
+    App Repartidor - Entregas (Dev2)         :a6, 2025-01-20, 5d
+    App Local - Gestión Pedidos (Dev3)       :a7, 2025-01-20, 5d
+    section Semana 3
+    Sistema LocalCoins y Fintechs (Dev1)     :a8, 2025-01-27, 5d
+    Integración LocalCoins en Apps (Dev2+3)  :a9, 2025-01-27, 5d
+    section Semana 4
+    Testing y Documentación (Todos)          :a10, 2025-02-03, 5d
+```
+
+---
+
 ## 📅 Semana 1: Setup y Fundamentos
 
 ### Tarea 1: Setup Backend y Base de Datos
@@ -69,30 +93,6 @@ Este es un Gantt conceptual con las tareas esenciales del MVP, organizadas en 4 
 **Desarrollador:** Todos  
 **Duración:** 5 días  
 **Descripción:** Testing de flujos completos, corrección de bugs, optimización de performance, documentación de usuario, preparación para piloto
-
----
-
-## 📊 Diagrama de Gantt (Mermaid)
-
-```mermaid
-gantt
-    title LOCALIA MVP - Gantt Conceptual (9 Tareas Principales)
-    dateFormat YYYY-MM-DD
-    section Semana 1
-    Setup Backend y Base de Datos (Dev1)     :a1, 2025-01-13, 5d
-    Setup Frontend Móvil (Dev2)              :a2, 2025-01-13, 5d
-    Setup Frontend Web (Dev3)                :a3, 2025-01-13, 5d
-    section Semana 2
-    API de Pedidos y Notificaciones (Dev1)  :a4, 2025-01-20, 5d
-    App Cliente - Pedidos (Dev2)             :a5, 2025-01-20, 5d
-    App Repartidor - Entregas (Dev2)         :a6, 2025-01-20, 5d
-    App Local - Gestión Pedidos (Dev3)       :a7, 2025-01-20, 5d
-    section Semana 3
-    Sistema LocalCoins y Fintechs (Dev1)     :a8, 2025-01-27, 5d
-    Integración LocalCoins en Apps (Dev2+3)  :a9, 2025-01-27, 5d
-    section Semana 4
-    Testing y Documentación (Todos)          :a10, 2025-02-03, 5d
-```
 
 ---
 
