@@ -22,7 +22,7 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
 
 **Objetivos:**
 - Apoyo a repartidores y comercios locales
-- Microcréditos y apoyo barrial
+- Apoyo barrial
 - Fortalecimiento de la economía local
 - Inclusión y equidad
 
@@ -30,7 +30,6 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
 - Comisiones justas
 - Programas de apoyo a microcomercios
 - Capacitación para repartidores
-- Fondo Verde Localia
 
 ### 3. Coherencia Ética
 
@@ -48,23 +47,6 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
 
 ## 🏪 Tipos de Comercio y Beneficios
 
-### Eco Partner
-
-**Características:**
-- ✅ Usa packaging Localia (ecológico)
-- **Comisión:** 10%
-- **Beneficios:**
-  - Visibilidad aumentada en la app
-  - Sello verde "🌱 Eco Partner"
-  - Acceso a campañas destacadas
-  - Prioridad en búsquedas
-  - Reportes de impacto ambiental
-
-**Requisitos:**
-- Usar empaques biodegradables
-- Compromiso con prácticas sostenibles
-- Certificación anual
-
 ### Estándar
 
 **Características:**
@@ -74,80 +56,13 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
   - Funcionalidades básicas
   - Sin beneficios adicionales
 
-### Piloto Social
-
-**Características:**
-- ✅ Usa packaging Localia
-- **Comisión:** 5-8%
-- **Beneficios:**
-  - Kit gratuito inicial de empaques
-  - Soporte especializado
-  - Programa de mentoría
-  - Acceso a microcréditos
-
-**Requisitos:**
-- Microcomercio o negocio social
-- Compromiso con la comunidad
-- Aprobación del programa
-
-## 🌿 Sello y Experiencia Eco Partner
-
-### Identificación Visual
-
-- **Badge "🌱 Eco Partner"** visible en:
-  - Perfil del local
-  - Resultados de búsqueda
-  - Detalles del pedido
-  - Material promocional
-
-### Experiencia del Cliente
-
-- **Información de impacto:**
-  - "Esta entrega ahorró 20g de plástico"
-  - "Repartidor en bicicleta: -500g CO₂"
-  - QR informativo en empaques
-
-- **Bolsas kraft con QR:**
-  - Información sobre sostenibilidad
-  - Link a impacto del pedido
-  - Tips ecológicos
-
-### Posicionamiento
-
-> **"Localia: la primera app de delivery local responsable de la Roma.  
-> Sostenible, justa y coherente."**
-
-## 💚 Fondo Verde Localia
-
-### Mecánica
-
-- **1% de cada transacción** se destina al fondo comunitario
-- Usuarios pueden **donar LCs voluntariamente**
-- Fondos se distribuyen mensualmente
-
-### Usos del Fondo
-
-1. **Limpieza:** Campañas de limpieza del barrio
-2. **Reforestación:** Plantación de árboles y áreas verdes
-3. **Apoyo a microcomercios:** Microcréditos y capacitación
-4. **Infraestructura:** Mejoras en espacios públicos
-5. **Educación:** Talleres de sostenibilidad
-
-### Transparencia
-
-- Reporte mensual de ingresos y gastos
-- Votación de la comunidad sobre proyectos
-- Rendición de cuentas pública
-
 ## 🎁 Recompensas e Incentivos Verdes
 
 | Acción | Recompensa |
 |--------|------------|
-| **Pedido en Eco Partner** | +0.5 LC cashback |
 | **Repartidor Green** (bicicleta) | +10 LC bonus mensual |
-| **Comercio certificado** | Acceso a campañas destacadas |
-| **Cliente frecuente eco** | Descuentos y beneficios |
-| **Referido que usa Eco Partner** | +2 LCs extra |
+| **Cliente frecuente** | Descuentos y beneficios |
+| **Referidos** | Bonificaciones según programa activo |
 
 ### Programa "Repartidor Green"
 
@@ -161,23 +76,6 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
 - Badge "Green" en perfil
 - Prioridad en asignación de pedidos
 - Acceso a seguro y beneficios
-
-## 📊 Certificaciones y Estándares
-
-### Proceso de Certificación Eco Partner
-
-1. **Aplicación:** Local solicita certificación
-2. **Evaluación:** Revisión de prácticas sostenibles
-3. **Capacitación:** Taller sobre empaques y prácticas
-4. **Certificación:** Aprobación y entrega de kit
-5. **Seguimiento:** Auditoría anual
-
-### Estándares Requeridos
-
-- Empaques 100% biodegradables
-- Reducción de plástico de un solo uso
-- Prácticas de reciclaje
-- Compromiso con la comunidad local
 
 ## 🌍 Impacto Esperado
 
@@ -195,11 +93,10 @@ LOCALIA se fundamenta en tres ejes de responsabilidad:
 
 ### Económico
 
-- $5,000+ MXN/mes en Fondo Verde
-- Microcréditos para comercios
 - Economía circular local
+- Apoyo a comercios locales
 
 ---
 
-**Anterior:** [Estrategia Roma](./05-estrategia-roma.md) | **Siguiente:** [Expansión e Impacto](./07-expansion-impacto.md)
+**Anterior:** [Estrategia Roma](./05-estrategia-roma.md) | **Siguiente:** [Red Social Ecológica](./07-red-social-ecologica.md)
 

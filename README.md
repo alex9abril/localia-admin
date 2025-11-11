@@ -12,7 +12,7 @@ Fortalecer la economía local evitando intermediarios financieros y promoviendo 
 - 💰 **Sistema de créditos:** LocalCoins (LCs) como moneda digital del ecosistema
 - 🌱 **Sostenibilidad:** Entregas ecológicas, empaques biodegradables y repartidores en bicicleta
 - 🤝 **Sin intermediarios:** Pagos directos entre clientes, locales y repartidores
-- 🏆 **Responsabilidad social:** Fondo Verde Localia y certificaciones Eco Partner
+- 🏆 **Responsabilidad social:** Apoyo a comercios locales y prácticas sostenibles
 
 ## 📚 Documentación
 
@@ -47,11 +47,16 @@ Esta documentación está organizada en las siguientes secciones:
 
 ### 🌱 [Responsabilidad Social y Sostenibilidad](./docs/06-responsabilidad-social.md)
 - Modelo eco-social
-- Fondo Verde Localia
 - Recompensas e incentivos verdes
-- Certificaciones Eco Partner
+- Impacto esperado
 
-### 📈 [Expansión y Medición de Impacto](./docs/07-expansion-impacto.md)
+### 📱 [Red Social Ecológica](./docs/07-red-social-ecologica.md)
+- Feed de contenido ecológico
+- Sistema de tags automáticos
+- Compartir impacto en redes sociales
+- Viralización y captación de usuarios
+
+### 📈 [Expansión y Medición de Impacto](./docs/08-expansion-impacto.md)
 - Estrategia de expansión por barrios
 - KPIs ESG (Environmental, Social, Governance)
 - Métricas de éxito

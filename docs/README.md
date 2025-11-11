@@ -40,12 +40,18 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 
 ### 6. [Responsabilidad Social y Sostenibilidad](./06-responsabilidad-social.md)
 - Modelo eco-social
-- Tipos de comercio (Eco Partner, Estándar, Piloto Social)
-- Fondo Verde Localia
+- Tipos de comercio (Estándar, Piloto Social)
 - Recompensas e incentivos verdes
-- Certificaciones y estándares
+- Impacto esperado
 
-### 7. [Expansión y Medición de Impacto](./07-expansion-impacto.md)
+### 7. [Red Social Ecológica](./07-red-social-ecologica.md)
+- Feed de contenido ecológico
+- Sistema de tags automáticos (CO₂ y plástico)
+- Compartir impacto en redes sociales
+- Viralización y captación de usuarios
+- Gamificación y rankings
+
+### 8. [Expansión y Medición de Impacto](./08-expansion-impacto.md)
 - Estrategia de expansión por barrios
 - KPIs ESG (Environmental, Social, Governance)
 - Métricas de éxito del negocio

@@ -138,11 +138,9 @@
 
 ## 🔄 Próximas Fases (Post-MVP)
 
-- Fase 2: Certificaciones Eco Partner
-- Fase 3: Fondo Verde Localia
-- Fase 4: Sistema de membresías Premium
-- Fase 5: Marketplace y publicidad
-- Fase 6: Expansión a múltiples barrios
+- Fase 2: Sistema de membresías Premium
+- Fase 3: Marketplace y publicidad
+- Fase 4: Expansión a múltiples barrios
 
 ---
 

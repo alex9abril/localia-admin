@@ -85,7 +85,6 @@ LOCALIA cuenta con múltiples fuentes de ingresos para asegurar sostenibilidad:
 ### 9. CSR (Circular)
 
 - Donaciones y patrocinios verdes
-- Fondo Verde Localia
 - Programas de impacto social
 
 ## 📊 Proyección de Ingresos (Ejemplo)
@@ -105,7 +104,6 @@ Total: $78,000 MXN/mes
 ### Comisiones por Transacción
 
 - **Estándar:** 15% sobre el valor del pedido
-- **Eco Partner:** 10% (con beneficios adicionales)
 - **Piloto social:** 5-8% (casos especiales)
 
 ### Precios de LCs

@@ -23,7 +23,7 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 
 #### 2. Lanzamiento (Semana 1-2)
 
-**Certificación "Green Founders":**
+**Programa "Founders":**
 - Locales que se unen en el lanzamiento
 - Beneficios especiales (comisiones reducidas)
 - Badge exclusivo
@@ -63,7 +63,7 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 - **Saturación:** ≥80% de cobertura en zona actual
 - **Demanda:** ≥100 pedidos/día consistentes
 - **Satisfacción:** NPS ≥55
-- **Sostenibilidad:** ≥50% de pedidos eco
+- **Calidad:** Rating promedio ≥ 4.5 estrellas
 
 ## 📈 Medición de Impacto (KPI ESG)
 
@@ -71,7 +71,6 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 
 | Indicador | Meta | Medición |
 |-----------|------|----------|
-| **Pedidos eco** | ≥ 50% | % de pedidos con Eco Partner |
 | **Reducción de plástico** | > 10 kg/mes | Kg de plástico evitado |
 | **Repartidores Green** | > 30% | % de repartidores en bicicleta |
 | **Emisiones CO₂ evitadas** | > 500 kg/mes | Cálculo de huella de carbono |
@@ -80,9 +79,7 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 
 | Indicador | Meta | Medición |
 |-----------|------|----------|
-| **Comercios certificados** | > 20 | Total de Eco Partners |
-| **Fondos verdes distribuidos** | $5,000 MXN/mes | Monto del Fondo Verde |
-| **Microcréditos otorgados** | > 5/mes | Número de microcréditos |
+| **Locales activos** | > 20 | Total de locales en plataforma |
 | **Empleos creados** | > 50 | Repartidores activos |
 
 ### Governance (Gobernanza)
@@ -124,8 +121,7 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 **Incluye:**
 - Métricas ESG (Environmental, Social, Governance)
 - Impacto ambiental (kg plástico, CO₂)
-- Fondos distribuidos
-- Proyectos financiados
+- Proyectos comunitarios
 - Testimonios de la comunidad
 
 **Canales:**
@@ -147,7 +143,6 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 - Comisión reducida (10-15%)
 - Visibilidad aumentada
 - Control de menú y precios
-- Certificación Eco Partner
 - Apoyo de la comunidad local
 
 ### Caso 2: Repartidor
@@ -160,7 +155,6 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 **Después:**
 - Ingresos estables
 - Beneficios (seguro, capacitación)
-- Certificación Green
 - Bonos por sostenibilidad
 - Conversión de LCs a dinero
 
@@ -198,5 +192,5 @@ LOCALIA se expande de manera estratégica, barrio por barrio, asegurando calidad
 
 ---
 
-**Anterior:** [Responsabilidad Social](./06-responsabilidad-social.md) | **Volver al inicio:** [README Principal](../README.md)
+**Anterior:** [Red Social Ecológica](./07-red-social-ecologica.md) | **Volver al inicio:** [README Principal](../README.md)
 

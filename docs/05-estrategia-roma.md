@@ -107,7 +107,7 @@ La **Colonia Roma** en Ciudad de México es el mercado objetivo inicial para el 
 ### Fase 1: Pre-lanzamiento (2 semanas antes)
 
 - Onboarding de 10-15 locales fundadores
-- Certificación "Green Founders"
+- Programa "Founders"
 - Campaña en redes sociales
 - Material promocional
 
