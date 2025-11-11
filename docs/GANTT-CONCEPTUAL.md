@@ -2,7 +2,7 @@
 
 ## 🎯 Tareas Principales del MVP (9 Tareas)
 
-Este es un Gantt conceptual con las tareas esenciales del MVP, organizadas en 4 semanas. **No incluye la red social ecológica** (se desarrollará posteriormente).
+Este es un Gantt conceptual con las tareas esenciales del MVP, organizadas en 4 semanas.
 
 ---
 
