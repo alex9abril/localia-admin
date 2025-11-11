@@ -61,6 +61,8 @@
 
 ## 📅 Roadmap de MVP (4 Semanas)
 
+> 📊 **Ver diagrama de Gantt visual:** [Gantt Conceptual](./GANTT-CONCEPTUAL.md)
+
 ### Semana 1: Definición Funcional y Setup Técnico
 
 **Objetivo:** Establecer las bases del proyecto
@@ -144,5 +146,5 @@
 
 ---
 
-**Anterior:** [Modelo de Operación](./02-modelo-operacion.md) | **Siguiente:** [Modelo Financiero](./04-modelo-financiero.md)
+**Anterior:** [Modelo de Operación](./02-modelo-operacion.md) | **Siguiente:** [Gantt Conceptual](./GANTT-CONCEPTUAL.md) | **Después:** [Modelo Financiero](./04-modelo-financiero.md)
 

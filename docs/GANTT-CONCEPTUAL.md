@@ -13,19 +13,19 @@ gantt
     title LOCALIA MVP - Gantt Conceptual (9 Tareas Principales)
     dateFormat YYYY-MM-DD
     section Semana 1
-    Setup Backend y Base de Datos (Dev1)     :a1, 2025-01-13, 5d
-    Setup Frontend Móvil (Dev2)              :a2, 2025-01-13, 5d
-    Setup Frontend Web (Dev3)                :a3, 2025-01-13, 5d
+    Setup Backend y Base de Datos (Dev1)     :a1, 2024-11-18, 5d
+    Setup Frontend Móvil (Dev2)              :a2, 2024-11-18, 5d
+    Setup Frontend Web (Dev3)                :a3, 2024-11-18, 5d
     section Semana 2
-    API de Pedidos y Notificaciones (Dev1)  :a4, 2025-01-20, 5d
-    App Cliente - Pedidos (Dev2)             :a5, 2025-01-20, 5d
-    App Repartidor - Entregas (Dev2)         :a6, 2025-01-20, 5d
-    App Local - Gestión Pedidos (Dev3)       :a7, 2025-01-20, 5d
+    API de Pedidos y Notificaciones (Dev1)  :a4, 2024-11-25, 5d
+    App Cliente - Pedidos (Dev2)             :a5, 2024-11-25, 5d
+    App Repartidor - Entregas (Dev2)         :a6, 2024-11-25, 5d
+    App Local - Gestión Pedidos (Dev3)       :a7, 2024-11-25, 5d
     section Semana 3
-    Sistema LocalCoins y Fintechs (Dev1)     :a8, 2025-01-27, 5d
-    Integración LocalCoins en Apps (Dev2+3)  :a9, 2025-01-27, 5d
+    Sistema LocalCoins y Fintechs (Dev1)     :a8, 2024-12-02, 5d
+    Integración LocalCoins en Apps (Dev2+3)  :a9, 2024-12-02, 5d
     section Semana 4
-    Testing y Documentación (Todos)          :a10, 2025-02-03, 5d
+    Testing y Documentación (Todos)          :a10, 2024-12-09, 5d
 ```
 
 ---
@@ -139,8 +139,8 @@ gantt
 
 ## 📅 Fechas del Proyecto
 
-- **Inicio:** 13 de Enero 2025 (Lunes)
-- **Fin:** 7 de Febrero 2025 (Viernes)
+- **Inicio:** 18 de Noviembre 2024 (Lunes)
+- **Fin:** 13 de Diciembre 2024 (Viernes)
 - **Duración:** 4 semanas (20 días laborables)
 - **Horas totales:** 480h (160h por desarrollador)
 
@@ -168,5 +168,11 @@ gantt
 
 ---
 
-**Última actualización:** Enero 2025
+**Anterior:** [Arquitectura y Roadmap MVP](./03-arquitectura-mvp.md) | **Siguiente:** [Modelo Financiero](./04-modelo-financiero.md)
+
+**Ver también:** [Roadmap Detallado](./03-arquitectura-mvp.md#-roadmap-de-mvp-4-semanas)
+
+---
+
+**Última actualización:** Noviembre 2024
 

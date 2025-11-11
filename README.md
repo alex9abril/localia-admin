@@ -35,6 +35,12 @@ Esta documentación está organizada en las siguientes secciones:
 - Roadmap de 4 semanas
 - Infraestructura
 
+### 📊 [Gantt Conceptual](./docs/GANTT-CONCEPTUAL.md)
+- Diagrama de Gantt visual (Mermaid)
+- 9 tareas principales del MVP
+- Distribución por semana y desarrollador
+- Fechas y entregables
+
 ### 💵 [Modelo Financiero y Monetización](./docs/04-modelo-financiero.md)
 - Roles fiscales y estrategia
 - Control de precios

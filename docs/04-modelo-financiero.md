@@ -154,5 +154,5 @@ Total: $78,000 MXN/mes
 
 ---
 
-**Anterior:** [Arquitectura MVP](./03-arquitectura-mvp.md) | **Siguiente:** [Estrategia Roma CDMX](./05-estrategia-roma.md)
+**Anterior:** [Gantt Conceptual](./GANTT-CONCEPTUAL.md) | **Siguiente:** [Estrategia Roma CDMX](./05-estrategia-roma.md)
 

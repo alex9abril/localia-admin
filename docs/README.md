@@ -24,6 +24,12 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 - Infraestructura
 - Criterios de éxito
 
+### 3.5. [Gantt Conceptual](./GANTT-CONCEPTUAL.md)
+- Diagrama de Gantt visual (Mermaid)
+- 9 tareas principales del MVP
+- Distribución por semana y desarrollador
+- Fechas y entregables
+
 ### 4. [Modelo Financiero y Monetización](./04-modelo-financiero.md)
 - Roles fiscales y estrategia
 - Control de precios
