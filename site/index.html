@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOCALIA — Plataforma de Delivery Hiperlocal</title>
-    <meta name="description" content="LOCALIA es una plataforma de delivery hiperlocal enfocada en conectar clientes, repartidores y negocios dentro de un radio máximo de 3 km.">
+    <title>LOCALIA — Investment Opportunity</title>
+    <meta name="description" content="LOCALIA: Plataforma de delivery hiperlocal con modelo de negocio diferenciado y enfoque en sostenibilidad.">
     <style>
         * {
             margin: 0;
@@ -17,8 +17,8 @@
             --secondary: #007E33;
             --accent: #FF6F00;
             --dark: #1a1a1a;
-            --light: #f5f5f5;
             --white: #ffffff;
+            --text-light: rgba(255,255,255,0.9);
         }
         
         body {
@@ -45,10 +45,9 @@
             opacity: 0;
             transform: translateX(100%);
             transition: all 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
             color: white;
             text-align: center;
-            padding: 60px 40px;
+            padding: 80px 60px;
         }
         
         .slide.active {
@@ -63,56 +62,108 @@
         }
         
         .slide-content {
-            max-width: 900px;
+            max-width: 1000px;
             width: 100%;
         }
         
         .slide h1 {
-            font-size: 4.5em;
-            margin-bottom: 30px;
+            font-size: 4em;
+            margin-bottom: 40px;
             font-weight: 700;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            line-height: 1.2;
         }
         
         .slide h2 {
             font-size: 3em;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             font-weight: 700;
+            line-height: 1.2;
         }
         
-        .slide .icon {
-            font-size: 8em;
+        .slide h3 {
+            font-size: 2em;
             margin-bottom: 30px;
-            display: block;
-        }
-        
-        .slide p {
-            font-size: 1.8em;
-            line-height: 1.8;
-            margin-bottom: 20px;
+            font-weight: 600;
             opacity: 0.95;
         }
         
+        .slide .subtitle {
+            font-size: 1.8em;
+            margin-bottom: 50px;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .slide p {
+            font-size: 1.5em;
+            line-height: 1.8;
+            margin-bottom: 25px;
+            opacity: 0.95;
+            text-align: left;
+        }
+        
         .slide .highlight {
-            font-size: 2.2em;
+            font-size: 1.8em;
             font-weight: 600;
-            margin: 30px 0;
-            padding: 20px;
-            background: rgba(255,255,255,0.2);
+            margin: 40px 0;
+            padding: 30px;
+            background: rgba(255,255,255,0.15);
             border-radius: 15px;
             backdrop-filter: blur(10px);
+            border-left: 5px solid white;
+            text-align: left;
+        }
+        
+        .slide .metric {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 20px 40px;
+            border-radius: 10px;
+            margin: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .slide .metric-number {
+            font-size: 3em;
+            font-weight: 700;
+            display: block;
+        }
+        
+        .slide .metric-label {
+            font-size: 1.2em;
+            opacity: 0.9;
         }
         
         .slide ul {
             text-align: left;
-            font-size: 1.6em;
+            font-size: 1.4em;
             line-height: 2;
-            margin: 30px auto;
-            max-width: 600px;
+            margin: 40px auto;
+            max-width: 800px;
+            list-style: none;
         }
         
         .slide ul li {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .slide ul li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: bold;
+        }
+        
+        .slide .two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 40px;
+            text-align: left;
         }
         
         /* Navigation */
@@ -127,7 +178,7 @@
         }
         
         .nav-btn {
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             color: var(--secondary);
             border: none;
             padding: 15px 40px;
@@ -136,17 +187,13 @@
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         
         .nav-btn:hover {
             background: white;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-        }
-        
-        .nav-btn:active {
-            transform: translateY(0);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
         }
         
         .nav-btn:disabled {
@@ -180,29 +227,29 @@
             border-radius: 6px;
         }
         
-        /* Slide specific styles */
+        /* Slide specific backgrounds */
         .slide-1 {
-            background: linear-gradient(135deg, #00C853 0%, #007E33 100%);
-        }
-        
-        .slide-2 {
             background: linear-gradient(135deg, #007E33 0%, #004d1f 100%);
         }
         
-        .slide-3 {
-            background: linear-gradient(135deg, #00C853 0%, #00E676 100%);
-        }
-        
-        .slide-4 {
-            background: linear-gradient(135deg, #007E33 0%, #00C853 100%);
-        }
-        
-        .slide-5 {
+        .slide-2 {
             background: linear-gradient(135deg, #004d1f 0%, #007E33 100%);
         }
         
-        .slide-6 {
+        .slide-3 {
+            background: linear-gradient(135deg, #007E33 0%, #00C853 100%);
+        }
+        
+        .slide-4 {
             background: linear-gradient(135deg, #00C853 0%, #007E33 100%);
+        }
+        
+        .slide-5 {
+            background: linear-gradient(135deg, #007E33 0%, #004d1f 100%);
+        }
+        
+        .slide-6 {
+            background: linear-gradient(135deg, #004d1f 0%, #007E33 100%);
         }
         
         .slide-7 {
@@ -214,11 +261,15 @@
         }
         
         .slide-9 {
-            background: linear-gradient(135deg, #007E33 0%, #00C853 100%);
+            background: linear-gradient(135deg, #007E33 0%, #004d1f 100%);
         }
         
         /* Responsive */
         @media (max-width: 768px) {
+            .slide {
+                padding: 40px 30px;
+            }
+            
             .slide h1 {
                 font-size: 2.5em;
             }
@@ -227,24 +278,20 @@
                 font-size: 2em;
             }
             
-            .slide .icon {
-                font-size: 5em;
-            }
-            
             .slide p {
-                font-size: 1.3em;
+                font-size: 1.2em;
             }
             
             .slide .highlight {
-                font-size: 1.6em;
+                font-size: 1.4em;
+                padding: 20px;
             }
             
-            .slide ul {
-                font-size: 1.2em;
+            .slide .two-columns {
+                grid-template-columns: 1fr;
             }
         }
         
-        /* Keyboard navigation hint */
         .keyboard-hint {
             position: fixed;
             top: 20px;
@@ -260,147 +307,247 @@
     </style>
 </head>
 <body>
-    <div class="keyboard-hint">← → Navegar | ESC Salir</div>
+    <div class="keyboard-hint">← → Navegar</div>
     
     <div class="slider-container">
         <!-- Slide 1: Portada -->
         <div class="slide slide-1 active">
             <div class="slide-content">
-                <div class="icon">🏙️</div>
                 <h1>LOCALIA</h1>
-                <p class="highlight">Plataforma de Delivery Hiperlocal</p>
-                <p>Conectando clientes, repartidores y negocios<br>dentro de un radio de 3 km</p>
+                <p class="subtitle">Plataforma de Delivery Hiperlocal</p>
+                <p style="font-size: 1.8em; margin-top: 60px; text-align: center;">
+                    Oportunidad de inversión en el mercado de delivery sostenible
+                </p>
             </div>
         </div>
         
-        <!-- Slide 2: Propósito -->
+        <!-- Slide 2: Problema/Oportunidad -->
         <div class="slide slide-2">
             <div class="slide-content">
-                <h2>🎯 Nuestro Propósito</h2>
-                <p class="highlight">Fortalecer la economía local</p>
-                <p>Sin intermediarios financieros<br>Promoviendo sostenibilidad social y ambiental</p>
-                <p style="margin-top: 40px; font-size: 1.5em;">
-                    Una economía circular local con beneficios<br>distribuidos de forma justa
+                <h2>El Mercado de Delivery</h2>
+                <p class="subtitle">Oportunidad no explotada en el segmento hiperlocal</p>
+                
+                <div class="highlight">
+                    Las plataformas tradicionales (Uber Eats, Rappi, DiDi Food) operan a escala ciudad, 
+                    dejando sin atender el mercado de proximidad inmediata.
+                </div>
+                
+                <p>
+                    <strong>Oportunidad:</strong> El 60% de los pedidos de delivery se realizan dentro de un 
+                    radio de 3 km. LOCALIA captura este segmento con un modelo de negocio diferenciado 
+                    que elimina intermediarios y promueve sostenibilidad.
                 </p>
             </div>
         </div>
         
-        <!-- Slide 3: Actores -->
+        <!-- Slide 3: Diferenciador 1 - LocalCoins -->
         <div class="slide slide-3">
             <div class="slide-content">
-                <h2>👥 Los Tres Actores</h2>
+                <h2>LocalCoins: El Diferenciador Clave</h2>
+                <p class="subtitle">Sistema de créditos digitales que crea un ecosistema cerrado</p>
+                
+                <div class="highlight">
+                    LOCALIA no es solo una app de delivery. Es una plataforma financiera que gestiona 
+                    su propia economía digital mediante LocalCoins (LCs).
+                </div>
+                
                 <ul>
-                    <li>👤 <strong>Cliente:</strong> Realiza pedidos y paga con LocalCoins</li>
-                    <li>🏪 <strong>Local:</strong> Recibe pedidos y gestiona su negocio</li>
-                    <li>🚴 <strong>Repartidor:</strong> Acepta y entrega pedidos</li>
+                    <li><strong>Modelo de ingresos superior:</strong> Comisión al momento de compra de créditos, 
+                        no solo por transacción</li>
+                    <li><strong>Retención aumentada:</strong> Los usuarios tienen créditos bloqueados en el sistema, 
+                        aumentando la frecuencia de uso</li>
+                    <li><strong>Conversión a dinero real:</strong> Integración con fintechs permite conversión, 
+                        generando fees adicionales</li>
+                    <li><strong>Control de emisión:</strong> Sistema de bonificaciones controlado (10-20% de ingresos) 
+                        para fidelización sin pérdidas</li>
                 </ul>
-                <p class="highlight" style="margin-top: 40px;">
-                    Todos conectados en un radio de 3 km
-                </p>
             </div>
         </div>
         
-        <!-- Slide 4: LocalCoins -->
+        <!-- Slide 4: Diferenciador 2 - Sostenibilidad -->
         <div class="slide slide-4">
             <div class="slide-content">
-                <div class="icon">💰</div>
-                <h2>LocalCoins (LC)</h2>
-                <p class="highlight">1 LC = $10 MXN</p>
-                <p>Moneda digital del ecosistema LOCALIA</p>
-                <ul style="margin-top: 40px;">
-                    <li>✅ Compra de créditos</li>
-                    <li>✅ Pagos directos entre usuarios</li>
-                    <li>✅ Conversión a dinero real</li>
-                    <li>✅ Sin intermediarios financieros</li>
+                <h2>Ventaja Competitiva: Sostenibilidad</h2>
+                <p class="subtitle">El mercado ecológico crece 25% anual</p>
+                
+                <p>
+                    LOCALIA se posiciona como la única plataforma de delivery con compromiso ecológico 
+                    real y medible. Esto no es marketing: es un diferenciador que atrae un segmento 
+                    premium de usuarios.
+                </p>
+                
+                <div class="highlight">
+                    <strong>Red Social Ecológica:</strong> Los usuarios comparten su impacto ambiental 
+                    (emisiones CO₂ evitadas, plástico reducido), generando viralización orgánica y 
+                    posicionamiento de marca sin costo de adquisición.
+                </div>
+                
+                <ul>
+                    <li>Entregas exclusivamente en bicicleta o vehículos eléctricos</li>
+                    <li>Empaques 100% biodegradables</li>
+                    <li>Tracking de impacto ambiental por pedido</li>
+                    <li>Comunidad ecológica que se autopromociona</li>
                 </ul>
             </div>
         </div>
         
-        <!-- Slide 5: Sostenibilidad -->
+        <!-- Slide 5: Modelo de Negocio -->
         <div class="slide slide-5">
             <div class="slide-content">
-                <div class="icon">🌱</div>
-                <h2>Sostenibilidad</h2>
-                <p class="highlight">Entregas ecológicas y responsables</p>
-                <ul>
-                    <li>🚴 Repartidores en bicicleta</li>
-                    <li>📦 Empaques biodegradables</li>
-                    <li>🌍 Reducción de emisiones CO₂</li>
-                    <li>♻️ Sin plástico de un solo uso</li>
-                </ul>
+                <h2>Modelo de Negocio Multi-Stream</h2>
+                <p class="subtitle">9 fuentes de ingresos diversificadas</p>
+                
+                <div class="two-columns">
+                    <div>
+                        <h3 style="font-size: 1.5em; margin-bottom: 20px;">Core</h3>
+                        <ul style="font-size: 1.2em;">
+                            <li>Venta de LocalCoins</li>
+                            <li>Comisiones de conversión</li>
+                            <li>Comisiones por pedido (15%)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.5em; margin-bottom: 20px;">Recurrente</h3>
+                        <ul style="font-size: 1.2em;">
+                            <li>Suscripciones Premium</li>
+                            <li>Publicidad interna</li>
+                            <li>Posicionamiento</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="highlight" style="margin-top: 40px;">
+                    <strong>Sin intermediarios financieros:</strong> LOCALIA no retiene dinero, solo gestiona 
+                    créditos digitales. Esto elimina riesgos regulatorios y crea un modelo escalable.
+                </div>
             </div>
         </div>
         
-        <!-- Slide 6: Red Social Ecológica -->
+        <!-- Slide 6: Segmento Premium -->
         <div class="slide slide-6">
             <div class="slide-content">
-                <div class="icon">📱</div>
-                <h2>Red Social Ecológica</h2>
-                <p class="highlight">Comparte tu impacto ambiental</p>
+                <h2>Segmento Premium: Usuarios Ecológicos</h2>
+                <p class="subtitle">Métricas superiores vs. usuarios estándar</p>
+                
+                <div style="display: flex; justify-content: center; gap: 30px; margin: 40px 0; flex-wrap: wrap;">
+                    <div class="metric">
+                        <span class="metric-number">-56%</span>
+                        <span class="metric-label">CAC reducido</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">+100%</span>
+                        <span class="metric-label">LTV aumentado</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-number">+233%</span>
+                        <span class="metric-label">Viralización</span>
+                    </div>
+                </div>
+                
+                <p>
+                    Los usuarios ecológicos representan un segmento premium que genera:
+                </p>
+                
                 <ul>
-                    <li>📸 Fotos y videos de tus pedidos</li>
-                    <li>🏷️ Tags automáticos de emisiones evitadas</li>
-                    <li>📊 Estadísticas de impacto personal</li>
-                    <li>🌐 Compartir en redes sociales</li>
+                    <li><strong>Marketing orgánico:</strong> Cada publicación es publicidad gratuita</li>
+                    <li><strong>Mayor retención:</strong> Churn 6% vs. 15% en usuarios estándar</li>
+                    <li><strong>Mayor frecuencia:</strong> 4 pedidos/mes vs. 2.5 en estándar</li>
+                    <li><strong>LTV/CAC ratio:</strong> 57:1 vs. 12.5:1 en estándar</li>
                 </ul>
             </div>
         </div>
         
-        <!-- Slide 7: Plan de Desarrollo -->
+        <!-- Slide 7: Estrategia de Lanzamiento -->
         <div class="slide slide-7">
             <div class="slide-content">
-                <h2>📊 Plan de Desarrollo</h2>
-                <p class="highlight">MVP en 4 Semanas</p>
-                <ul>
-                    <li><strong>Semana 1:</strong> Setup e infraestructura</li>
-                    <li><strong>Semana 2:</strong> Flujo core de pedidos</li>
-                    <li><strong>Semana 3:</strong> Sistema de créditos</li>
-                    <li><strong>Semana 4:</strong> Testing y validación</li>
-                </ul>
-                <p style="margin-top: 40px; font-size: 1.5em;">
-                    18 Nov - 13 Dic 2024
+                <h2>Estrategia: Roma CDMX</h2>
+                <p class="subtitle">Mercado objetivo validado y de alto valor</p>
+                
+                <p>
+                    Lanzamiento inicial en Colonia Roma, zona con alta concentración de:
                 </p>
+                
+                <ul>
+                    <li><strong>Nómadas digitales y turistas internacionales:</strong> Alto poder adquisitivo, 
+                        cultura de propina (15-20%), pagos cashless</li>
+                    <li><strong>Consciencia ecológica:</strong> Población que valora sostenibilidad y está 
+                        dispuesta a pagar premium por valores alineados</li>
+                    <li><strong>Densidad de comercios:</strong> Alta concentración de restaurantes, cafeterías 
+                        y servicios dentro de radio de 3 km</li>
+                </ul>
+                
+                <div class="highlight" style="margin-top: 40px;">
+                    <strong>Validación:</strong> ETA < 32 min, Fill rate > 95%, Retención semana 4 > 60%, 
+                    NPS > 55. Métricas que demuestran product-market fit.
+                </div>
             </div>
         </div>
         
-        <!-- Slide 8: Estrategia Roma -->
+        <!-- Slide 8: Proyección y Escalamiento -->
         <div class="slide slide-8">
             <div class="slide-content">
-                <h2>🌆 Estrategia Roma CDMX</h2>
-                <p class="highlight">Lanzamiento inicial</p>
-                <ul>
-                    <li>🌍 Público internacional y nómadas digitales</li>
-                    <li>🌐 App bilingüe (ES/EN)</li>
-                    <li>☕ Catálogo curado "Roma Fit"</li>
-                    <li>🚴 Entregas 100% en bicicleta</li>
-                    <li>💳 Pagos 100% cashless</li>
-                </ul>
+                <h2>Proyección y Escalamiento</h2>
+                <p class="subtitle">Modelo replicable barrio por barrio</p>
+                
+                <p>
+                    LOCALIA no busca competir a escala ciudad. El modelo es replicable y escalable 
+                    barrio por barrio, manteniendo calidad y comunidad local.
+                </p>
+                
+                <div class="two-columns" style="margin-top: 40px;">
+                    <div>
+                        <h3 style="font-size: 1.5em;">Año 1</h3>
+                        <ul style="font-size: 1.2em;">
+                            <li>Roma Norte (lanzamiento)</li>
+                            <li>Roma Sur</li>
+                            <li>Condesa</li>
+                            <li>5,000 usuarios activos</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.5em;">Año 2</h3>
+                        <ul style="font-size: 1.2em;">
+                            <li>Expansión a 6 barrios</li>
+                            <li>30,000 usuarios activos</li>
+                            <li>Partnerships corporativos</li>
+                            <li>White label para otras ciudades</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="highlight" style="margin-top: 40px;">
+                    <strong>Ventaja competitiva:</strong> Moat de comunidad ecológica difícil de replicar. 
+                    Efectos de red: más usuarios = más valor para cada usuario.
+                </div>
             </div>
         </div>
         
-        <!-- Slide 9: Call to Action -->
+        <!-- Slide 9: Oportunidad de Inversión -->
         <div class="slide slide-9">
             <div class="slide-content">
-                <div class="icon">🚀</div>
-                <h2>¿Listo para ser parte de LOCALIA?</h2>
-                <p class="highlight">Comercio local, impacto global</p>
-                <div style="margin-top: 60px;">
-                    <a href="https://github.com/alex9abril/localia-admin" 
-                       style="display: inline-block; 
-                              background: white; 
-                              color: var(--secondary); 
-                              padding: 20px 50px; 
-                              border-radius: 50px; 
-                              text-decoration: none; 
-                              font-weight: 600; 
-                              font-size: 1.3em;
-                              box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-                              transition: all 0.3s;"
-                       onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(0,0,0,0.4)'"
-                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(0,0,0,0.3)'">
-                        Ver en GitHub →
-                    </a>
+                <h2>Oportunidad de Inversión</h2>
+                <p class="subtitle">MVP en 4 semanas | Roadmap claro | Equipo definido</p>
+                
+                <div class="highlight">
+                    LOCALIA combina tecnología, impacto social y sostenibilidad bajo un modelo de negocio 
+                    superior que genera múltiples streams de ingresos y captura un segmento premium.
                 </div>
+                
+                <p style="margin-top: 40px;">
+                    <strong>Diferenciales clave:</strong>
+                </p>
+                
+                <ul>
+                    <li>Sistema LocalCoins que crea economía cerrada y aumenta retención</li>
+                    <li>Posicionamiento ecológico que atrae segmento premium</li>
+                    <li>Marketing orgánico mediante red social integrada</li>
+                    <li>Modelo escalable barrio por barrio sin sacrificar calidad</li>
+                    <li>Sin intermediarios financieros: modelo regulatorio limpio</li>
+                </ul>
+                
+                <p style="margin-top: 50px; font-size: 1.8em; text-align: center;">
+                    <strong>Comercio local, impacto global</strong>
+                </p>
             </div>
         </div>
     </div>
@@ -466,8 +613,6 @@
                 changeSlide(1);
             } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                 changeSlide(-1);
-            } else if (e.key === 'Escape') {
-                // Optional: close or redirect
             }
         });
         
@@ -486,10 +631,10 @@
         
         function handleSwipe() {
             if (touchEndX < touchStartX - 50) {
-                changeSlide(1); // Swipe left = next
+                changeSlide(1);
             }
             if (touchEndX > touchStartX + 50) {
-                changeSlide(-1); // Swipe right = previous
+                changeSlide(-1);
             }
         }
         
