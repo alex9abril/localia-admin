@@ -25,6 +25,33 @@ Los precios en la app deben incluir:
 
 Esto mantiene claridad y estabilidad en los márgenes para todos los actores.
 
+## 💳 Sistema de Wallet y Transacciones
+
+### Wallet de LocalCoins
+
+La construcción de la **wallet** que controlará las transacciones de cada usuario (clientes, locales y repartidores) se realizará mediante un **proyecto adicional separado** denominado **"Proyecto Wallet"**.
+
+**Características del Proyecto Wallet:**
+- Desarrollo independiente del MVP principal
+- Gestión centralizada de LocalCoins (LCs) por usuario
+- Control de transacciones entre usuarios
+- Integración con fintechs para conversión
+- API dedicada para operaciones financieras
+- Seguridad y auditoría de transacciones
+
+**Funcionalidades principales:**
+- Balance de LCs por usuario
+- Historial de transacciones
+- Compra de LCs
+- Conversión de LCs a dinero real
+- Transferencias entre usuarios
+- Propinas y pagos
+
+**Integración:**
+- El Proyecto Wallet se integrará con las aplicaciones principales (Cliente, Repartidor, Local, Admin) mediante APIs
+- Mantendrá separación de responsabilidades y seguridad financiera
+- Permitirá escalabilidad independiente del sistema de pagos
+
 ## 💰 Monetización Diversificada
 
 LOCALIA cuenta con múltiples fuentes de ingresos para asegurar sostenibilidad:
