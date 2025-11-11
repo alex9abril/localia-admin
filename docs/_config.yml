@@ -1,0 +1,7 @@
+theme: jekyll-theme-minimal
+title: LOCALIA - Plataforma de Delivery Hiperlocal
+description: Documentación completa del proyecto LOCALIA
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+
