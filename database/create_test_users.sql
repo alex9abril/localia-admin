@@ -1,12 +1,13 @@
 -- ============================================================================
 -- CREAR USUARIOS DE PRUEBA EN SUPABASE AUTH
 -- ============================================================================
--- Descripción: Intenta crear usuarios en auth.users para testing
+-- Descripción: Función para crear usuarios en auth.users para testing
 -- 
--- ⚠️ ADVERTENCIA: Este script puede no funcionar en Supabase sin permisos
---    de service_role. Si falla, usa el Dashboard o la API de Supabase.
+-- ⚠️ ADVERTENCIA: Este script requiere permisos de service_role o superusuario.
+--    En Supabase, normalmente NO puedes insertar directamente en auth.users.
+--    Usa el Dashboard o la API de Supabase en su lugar.
 -- ============================================================================
--- Versión: 1.0
+-- Versión: 2.0
 -- Fecha: 2024-11-18
 -- ============================================================================
 
@@ -14,126 +15,92 @@
 SET search_path TO public, auth;
 
 -- ============================================================================
--- OPCIÓN 1: Usar función de Supabase (si está disponible)
+-- FUNCIÓN PARA CREAR USUARIO DE PRUEBA
 -- ============================================================================
--- Supabase puede tener funciones helper para crear usuarios
--- Intenta esto primero:
 
-DO $$
+CREATE OR REPLACE FUNCTION create_test_user(
+    p_email TEXT,
+    p_password TEXT DEFAULT 'password123',
+    p_user_id UUID DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
-    instance_id_val UUID;
-    user_id_1 UUID := 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-    user_id_2 UUID := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-    user_id_3 UUID := '11111111-1111-1111-1111-111111111111';
+    v_instance_id UUID;
+    v_user_id UUID;
+    v_encrypted_password TEXT;
 BEGIN
     -- Obtener instance_id
-    SELECT id INTO instance_id_val FROM auth.instances LIMIT 1;
+    SELECT id INTO v_instance_id FROM auth.instances LIMIT 1;
     
-    -- Intentar crear usuario 1 (Cliente)
-    BEGIN
-        INSERT INTO auth.users (
-            id,
-            instance_id,
-            email,
-            encrypted_password,
-            email_confirmed_at,
-            created_at,
-            updated_at,
-            raw_app_meta_data,
-            raw_user_meta_data,
-            is_super_admin,
-            role,
-            aud
-        ) VALUES (
-            user_id_1,
-            instance_id_val,
-            'cliente@example.com',
-            crypt('password123', gen_salt('bf')),
-            NOW(),
-            NOW(),
-            NOW(),
-            '{"provider": "email", "providers": ["email"]}',
-            '{}',
-            FALSE,
-            'authenticated',
-            'authenticated'
-        ) ON CONFLICT (id) DO NOTHING;
-        
-        RAISE NOTICE 'Usuario cliente creado o ya existe';
-    EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Error creando usuario cliente: %', SQLERRM;
-    END;
+    IF v_instance_id IS NULL THEN
+        RAISE EXCEPTION 'No se encontró instance_id en auth.instances';
+    END IF;
     
-    -- Intentar crear usuario 2 (Repartidor)
-    BEGIN
-        INSERT INTO auth.users (
-            id,
-            instance_id,
-            email,
-            encrypted_password,
-            email_confirmed_at,
-            created_at,
-            updated_at,
-            raw_app_meta_data,
-            raw_user_meta_data,
-            is_super_admin,
-            role,
-            aud
-        ) VALUES (
-            user_id_2,
-            instance_id_val,
-            'repartidor@example.com',
-            crypt('password123', gen_salt('bf')),
-            NOW(),
-            NOW(),
-            NOW(),
-            '{"provider": "email", "providers": ["email"]}',
-            '{}',
-            FALSE,
-            'authenticated',
-            'authenticated'
-        ) ON CONFLICT (id) DO NOTHING;
-        
-        RAISE NOTICE 'Usuario repartidor creado o ya existe';
-    EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Error creando usuario repartidor: %', SQLERRM;
-    END;
+    -- Usar el ID proporcionado o generar uno nuevo
+    IF p_user_id IS NULL THEN
+        v_user_id := gen_random_uuid();
+    ELSE
+        v_user_id := p_user_id;
+    END IF;
     
-    -- Intentar crear usuario 3 (Local)
-    BEGIN
-        INSERT INTO auth.users (
-            id,
-            instance_id,
-            email,
-            encrypted_password,
-            email_confirmed_at,
-            created_at,
-            updated_at,
-            raw_app_meta_data,
-            raw_user_meta_data,
-            is_super_admin,
-            role,
-            aud
-        ) VALUES (
-            user_id_3,
-            instance_id_val,
-            'local@example.com',
-            crypt('password123', gen_salt('bf')),
-            NOW(),
-            NOW(),
-            NOW(),
-            '{"provider": "email", "providers": ["email"]}',
-            '{}',
-            FALSE,
-            'authenticated',
-            'authenticated'
-        ) ON CONFLICT (id) DO NOTHING;
-        
-        RAISE NOTICE 'Usuario local creado o ya existe';
-    EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'Error creando usuario local: %', SQLERRM;
-    END;
-END $$;
+    -- Encriptar password
+    v_encrypted_password := crypt(p_password, gen_salt('bf'));
+    
+    -- Intentar insertar usuario
+    INSERT INTO auth.users (
+        id,
+        instance_id,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        created_at,
+        updated_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        is_super_admin,
+        role,
+        aud
+    ) VALUES (
+        v_user_id,
+        v_instance_id,
+        p_email,
+        v_encrypted_password,
+        NOW(),
+        NOW(),
+        NOW(),
+        '{"provider": "email", "providers": ["email"]}',
+        '{}',
+        FALSE,
+        'authenticated',
+        'authenticated'
+    ) ON CONFLICT (id) DO NOTHING
+    RETURNING id INTO v_user_id;
+    
+    -- Si no se insertó (conflicto), obtener el ID existente
+    IF v_user_id IS NULL THEN
+        SELECT id INTO v_user_id FROM auth.users WHERE email = p_email LIMIT 1;
+        RAISE NOTICE 'Usuario % ya existe con ID: %', p_email, v_user_id;
+    ELSE
+        RAISE NOTICE 'Usuario % creado con ID: %', p_email, v_user_id;
+    END IF;
+    
+    RETURN v_user_id;
+EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Error creando usuario %: %', p_email, SQLERRM;
+END;
+$$;
+
+-- ============================================================================
+-- CREAR LOS 3 USUARIOS DE PRUEBA
+-- ============================================================================
+
+-- Ejecutar la función para crear cada usuario
+SELECT create_test_user('cliente@example.com', 'password123');
+SELECT create_test_user('repartidor@example.com', 'password123');
+SELECT create_test_user('local@example.com', 'password123');
 
 -- ============================================================================
 -- VERIFICAR QUE LOS USUARIOS SE CREARON
@@ -145,10 +112,10 @@ SELECT
     email_confirmed_at IS NOT NULL as email_verified,
     created_at
 FROM auth.users 
-WHERE id IN (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    '11111111-1111-1111-1111-111111111111'
+WHERE email IN (
+    'cliente@example.com',
+    'repartidor@example.com',
+    'local@example.com'
 )
 ORDER BY email;
 
