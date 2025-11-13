@@ -44,17 +44,54 @@ DELETE FROM core.user_profiles WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa
 -- ============================================================================
 -- 1. USUARIOS Y PERFILES
 -- ============================================================================
--- IMPORTANTE: Los usuarios deben crearse primero en Supabase Auth
--- Usa la API de Supabase o el Dashboard para crear:
+-- ⚠️ IMPORTANTE: Los usuarios DEBEN crearse PRIMERO en Supabase Auth
 -- 
--- Cliente: cliente@example.com (ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa)
--- Repartidor: repartidor@example.com (ID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb)
--- Local: local@example.com (ID: 11111111-1111-1111-1111-111111111111)
+-- OPCIÓN 1: Usar Supabase Dashboard (Recomendado)
+-- 1. Ve a Authentication > Users > Add User
+-- 2. Crea estos 3 usuarios con estos IDs exactos:
+--    - Email: cliente@example.com
+--      ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+--      Password: (cualquiera, ej: password123)
+--    
+--    - Email: repartidor@example.com
+--      ID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+--      Password: (cualquiera, ej: password123)
+--    
+--    - Email: local@example.com
+--      ID: 11111111-1111-1111-1111-111111111111
+--      Password: (cualquiera, ej: password123)
 --
--- O usa el script de ejemplo al final de este archivo para crear usuarios vía SQL
--- (requiere permisos especiales en Supabase)
+-- OPCIÓN 2: Usar Supabase Auth API (desde tu aplicación)
+-- Usa supabase.auth.admin.createUser() con los IDs especificados
+--
+-- OPCIÓN 3: SQL directo (requiere permisos de service_role)
+-- Ver sección al final de este archivo
+--
+-- ⚠️ NO ejecutes los INSERTs de abajo hasta que los usuarios existan en auth.users
 
--- Perfiles de Usuario (extienden auth.users)
+-- ============================================================================
+-- VERIFICAR QUE LOS USUARIOS EXISTAN EN auth.users
+-- ============================================================================
+-- Descomenta estas líneas para verificar antes de insertar perfiles:
+/*
+SELECT 
+    id, 
+    email, 
+    email_confirmed_at IS NOT NULL as email_verified
+FROM auth.users 
+WHERE id IN (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    '11111111-1111-1111-1111-111111111111'
+);
+-- Debe retornar 3 filas. Si retorna menos, crea los usuarios faltantes.
+*/
+
+-- ============================================================================
+-- PERFILES DE USUARIO (extienden auth.users)
+-- ============================================================================
+-- ⚠️ Solo ejecuta esto DESPUÉS de crear los usuarios en auth.users
+
 -- Cliente
 INSERT INTO core.user_profiles (
     id, role, first_name, last_name, phone,
@@ -435,20 +472,40 @@ INSERT INTO reviews.tips (
 -- ============================================================================
 
 -- ============================================================================
--- NOTA: Crear usuarios en Supabase Auth
+-- OPCIÓN 3: Crear usuarios vía SQL (SOLO para desarrollo/testing)
 -- ============================================================================
--- Para crear los usuarios en auth.users, puedes usar:
+-- ⚠️ ADVERTENCIA: Esto requiere permisos de service_role y solo funciona
+--    en entornos de desarrollo. NO usar en producción.
 --
--- 1. Supabase Dashboard: Authentication > Users > Add User
--- 2. Supabase Auth API (desde tu aplicación)
--- 3. SQL directo (requiere permisos especiales):
+-- Para usar esta opción, necesitas conectarte con el rol service_role
+-- o usar la función auth.users_admin_create() si está disponible.
+--
+-- Ejemplo usando Supabase Management API (desde tu aplicación):
+-- 
+-- const { data, error } = await supabase.auth.admin.createUser({
+--   email: 'cliente@example.com',
+--   password: 'password123',
+--   user_metadata: { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }
+-- });
+--
+-- O usando SQL directo (requiere permisos especiales):
 --
 -- INSERT INTO auth.users (
---     id, instance_id, email, encrypted_password, email_confirmed_at,
---     created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, role
+--     id, 
+--     instance_id, 
+--     email, 
+--     encrypted_password, 
+--     email_confirmed_at,
+--     created_at, 
+--     updated_at, 
+--     raw_app_meta_data, 
+--     raw_user_meta_data, 
+--     is_super_admin, 
+--     role,
+--     aud
 -- ) VALUES (
 --     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
---     '00000000-0000-0000-0000-000000000000',
+--     (SELECT id FROM auth.instances LIMIT 1),
 --     'cliente@example.com',
 --     crypt('password123', gen_salt('bf')),
 --     NOW(),
@@ -457,10 +514,13 @@ INSERT INTO reviews.tips (
 --     '{"provider": "email", "providers": ["email"]}',
 --     '{}',
 --     FALSE,
+--     'authenticated',
 --     'authenticated'
 -- );
 --
--- (Repetir para los otros dos usuarios con sus respectivos IDs y emails)
+-- (Repetir para repartidor@example.com y local@example.com con sus IDs)
+--
+-- ⚠️ RECOMENDACIÓN: Usa el Dashboard de Supabase (Opción 1) para evitar problemas
 
 -- ============================================================================
 -- VERIFICACIÓN DE DATOS INSERTADOS
