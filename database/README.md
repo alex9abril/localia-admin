@@ -4,7 +4,9 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 
 ## 📁 Archivos
 
-- **`schema.sql`**: Script SQL completo con todas las tablas, índices, triggers y funciones del sistema.
+- **`schema.sql`**: Script SQL con la estructura completa de la base de datos (tablas, índices, triggers, funciones)
+- **`seed_catalog.sql`**: Script para poblar datos de catálogo (categorías globales de ejemplo)
+- **`seed_delivery_cycle.sql`**: Script completo con un ciclo de delivery de ejemplo (usuarios, negocio, productos, pedido, entrega, evaluación, propina)
 
 ## 🗄️ Estructura de la Base de Datos
 
@@ -90,6 +92,26 @@ Estas referencias permiten la integración mediante APIs sin duplicar datos.
 
 ## 🚀 Uso
 
+### Estructura de Scripts
+
+Los scripts están organizados en tres archivos:
+
+1. **`schema.sql`**: Estructura de la base de datos (tablas, índices, triggers, funciones)
+   - Debe ejecutarse primero
+   - Crea todos los schemas, tablas y relaciones
+
+2. **`seed_catalog.sql`**: Datos de catálogo básicos
+   - Categorías globales de ejemplo
+   - Útil para tener categorías base sin datos de negocio
+
+3. **`seed_delivery_cycle.sql`**: Ciclo completo de delivery
+   - Usuarios (cliente, repartidor, dueño de local)
+   - Negocio completo con productos y colecciones
+   - Pedido completo con items
+   - Entrega realizada
+   - Evaluación y propina
+   - **Recomendado para pruebas y desarrollo**
+
 ### Crear la Base de Datos
 
 ```bash
@@ -102,8 +124,15 @@ CREATE DATABASE delivery_ecosystem;
 # Conectar a la base de datos
 \c delivery_ecosystem
 
-# Ejecutar el schema
+# Ejecutar el schema (estructura)
 \i database/schema.sql
+
+# (Opcional) Poblar datos de ejemplo
+# Opción 1: Solo catálogo básico
+\i database/seed_catalog.sql
+
+# Opción 2: Ciclo completo de delivery (recomendado para pruebas)
+\i database/seed_delivery_cycle.sql
 ```
 
 ### Verificar Instalación
@@ -401,6 +430,54 @@ Para futuras modificaciones del schema, se recomienda:
 - Las coordenadas geográficas usan PostGIS `POINT` type
 - Los arrays (tags, badges) usan tipos nativos de PostgreSQL
 
+## 📝 Scripts de Seed Data
+
+### seed_catalog.sql
+
+Incluye categorías globales de ejemplo que pueden ser usadas por cualquier negocio:
+- Entradas
+- Platos Principales
+- Bebidas (con subcategorías: Frías y Calientes)
+- Postres
+- Especialidades
+
+**Uso:**
+```sql
+\i database/seed_catalog.sql
+```
+
+### seed_delivery_cycle.sql
+
+Script completo que crea un ciclo de delivery de extremo a extremo:
+
+**Incluye:**
+- ✅ 3 usuarios: Cliente, Repartidor, Dueño de Local
+- ✅ Direcciones con geolocalización (La Roma, CDMX)
+- ✅ Negocio completo: "Restaurante La Roma"
+- ✅ 4 categorías de productos específicas del negocio
+- ✅ 7 productos: Tacos, Hamburguesas, Bebidas, Postres
+- ✅ 1 colección: "Combo Familiar" con productos incluidos
+- ✅ Repartidor ecológico (bicicleta)
+- ✅ Pedido completo con estado "delivered"
+- ✅ Items del pedido (combo + producto individual)
+- ✅ Entrega completada (22 minutos, 0.8 km)
+- ✅ Evaluación: 5 estrellas a negocio y repartidor
+- ✅ Propina: $50 MXN
+
+**Datos de ejemplo:**
+- Cliente: `cliente@example.com`
+- Repartidor: `repartidor@example.com`
+- Local: `local@example.com`
+- Pedido ID: `order0001-0000-0000-0000-000000000001`
+
+**Uso:**
+```sql
+\i database/seed_delivery_cycle.sql
+```
+
+**Verificar datos insertados:**
+El script incluye una consulta al final que muestra un resumen de todos los datos insertados.
+
 ## 🔗 Referencias
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
@@ -410,5 +487,5 @@ Para futuras modificaciones del schema, se recomienda:
 ---
 
 **Última actualización:** Noviembre 2024  
-**Versión del Schema:** 1.0
+**Versión del Schema:** 1.1
 
