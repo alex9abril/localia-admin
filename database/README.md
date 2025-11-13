@@ -40,10 +40,12 @@ La base de datos está organizada en **7 schemas** para mejor mantenibilidad:
 ## 📋 Tablas Principales
 
 ### Schema: `core`
-- `users` - Usuarios del sistema (clientes, repartidores, locales, admins)
+- `user_profiles` - Perfiles de usuario que extienden `auth.users` de Supabase (roles, información personal)
 - `addresses` - Direcciones de usuarios con geolocalización
 - `businesses` - Locales/negocios registrados
 - `repartidores` - Información específica de repartidores
+
+**Nota:** La autenticación se maneja mediante Supabase Auth (`auth.users`). Esta tabla solo contiene información de perfil y roles.
 
 ### Schema: `catalog`
 - `product_categories` - Categorías de productos (normalizadas, con jerarquía)
@@ -77,11 +79,25 @@ La base de datos está organizada en **7 schemas** para mejor mantenibilidad:
 - `social_follows` - Relaciones de seguimiento
 - `user_eco_profile` - Perfil ecológico y métricas de impacto
 
+## 🔐 Integración con Supabase Auth
+
+Este schema está diseñado para trabajar con **Supabase Authentication**:
+
+- **`auth.users`**: Tabla de usuarios de Supabase (email, password, verificación)
+- **`core.user_profiles`**: Tabla que extiende `auth.users` con información de perfil y roles
+
+**Función automática:** Se incluye `handle_new_user()` que crea automáticamente un perfil cuando se registra un usuario en Supabase Auth. El trigger debe configurarse en Supabase Dashboard.
+
+**Para crear usuarios:**
+- Usa Supabase Auth API desde tu aplicación
+- O crea usuarios manualmente desde Supabase Dashboard
+- El perfil se crea automáticamente si el trigger está configurado
+
 ## 🔗 Integración con Wallet
 
 El sistema de **Wallet (LocalCoins)** es un proyecto separado. Este schema incluye referencias externas mediante campos UUID:
 
-- `users.wallet_user_id` - ID del usuario en el Wallet
+- `user_profiles.wallet_user_id` - ID del usuario en el Wallet
 - `businesses.wallet_business_id` - ID del negocio en el Wallet
 - `repartidores.wallet_repartidor_id` - ID del repartidor en el Wallet
 - `orders.wallet_transaction_id` - ID de transacción en el Wallet
@@ -155,7 +171,7 @@ CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 \dt social.*
 
 -- Ver estructura de una tabla
-\d core.users
+\d core.user_profiles
 \d catalog.products
 \d orders.orders
 
@@ -178,10 +194,10 @@ ORDER BY table_schema, table_name;
 
 ```
 SCHEMA: core
-├── users (1) ──┬── (N) addresses
-│               ├── (1) repartidores
-│               ├── (N) orders (como client_id)
-│               └── (N) social_posts
+├── user_profiles (1) ──┬── (N) addresses
+│                       ├── (1) repartidores
+│                       ├── (N) orders (como client_id)
+│                       └── (N) social_posts
 │
 ├── businesses (1) ──┬── (N) product_categories
 │                    ├── (N) products
@@ -192,6 +208,8 @@ SCHEMA: core
 │
 └── repartidores (1) ──┬── (N) deliveries
                        └── (N) tips
+
+NOTA: user_profiles.id referencia auth.users.id (Supabase Auth)
 
 SCHEMA: catalog
 ├── product_categories (1) ──┬── (N) products
@@ -304,10 +322,25 @@ VALUES
 
 ### Usuarios Activos por Rol
 ```sql
-SELECT role, COUNT(*) as total
-FROM core.users
-WHERE is_active = TRUE
-GROUP BY role;
+SELECT up.role, COUNT(*) as total
+FROM core.user_profiles up
+WHERE up.is_active = TRUE
+GROUP BY up.role;
+```
+
+### Usuarios con Información de Auth
+```sql
+SELECT 
+    au.id,
+    au.email,
+    au.email_confirmed_at,
+    up.role,
+    up.first_name,
+    up.last_name,
+    up.phone
+FROM auth.users au
+LEFT JOIN core.user_profiles up ON up.id = au.id
+WHERE up.is_active = TRUE;
 ```
 
 ### Pedidos por Estado
@@ -362,9 +395,9 @@ ORDER BY cp.display_order;
 
 ### Repartidores Disponibles en Radio
 ```sql
-SELECT r.id, u.first_name, u.last_name, r.current_location
+SELECT r.id, up.first_name, up.last_name, r.current_location
 FROM core.repartidores r
-JOIN core.users u ON r.user_id = u.id
+JOIN core.user_profiles up ON r.user_id = up.id
 WHERE r.is_available = TRUE
   AND ST_DWithin(
     r.current_location::geography,
@@ -375,9 +408,9 @@ WHERE r.is_available = TRUE
 
 ### Publicaciones Ecológicas Más Populares
 ```sql
-SELECT sp.id, u.first_name, sp.co2_saved_kg, sp.likes_count
+SELECT sp.id, up.first_name, sp.co2_saved_kg, sp.likes_count
 FROM social.social_posts sp
-JOIN core.users u ON sp.user_id = u.id
+JOIN core.user_profiles up ON sp.user_id = up.id
 WHERE sp.is_visible = TRUE
 ORDER BY sp.likes_count DESC
 LIMIT 10;
@@ -455,7 +488,7 @@ Incluye categorías globales de ejemplo que pueden ser usadas por cualquier nego
 Script completo que crea un ciclo de delivery de extremo a extremo:
 
 **Incluye:**
-- ✅ 3 usuarios: Cliente, Repartidor, Dueño de Local
+- ✅ 3 perfiles de usuario: Cliente, Repartidor, Dueño de Local
 - ✅ Direcciones con geolocalización (La Roma, CDMX)
 - ✅ Negocio completo: "Restaurante La Roma"
 - ✅ 4 categorías de productos específicas del negocio
@@ -469,12 +502,14 @@ Script completo que crea un ciclo de delivery de extremo a extremo:
 - ✅ Propina: $50 MXN
 
 **Datos de ejemplo:**
-- Cliente: `cliente@example.com`
-- Repartidor: `repartidor@example.com`
-- Local: `local@example.com`
+- Cliente: `cliente@example.com` (ID: `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa`)
+- Repartidor: `repartidor@example.com` (ID: `bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`)
+- Local: `local@example.com` (ID: `11111111-1111-1111-1111-111111111111`)
 - Pedido ID: `order0001-0000-0000-0000-000000000001`
 
-**Uso:**
+**IMPORTANTE - Uso con Supabase:**
+1. **Crear usuarios primero** en Supabase Auth (Dashboard o API)
+2. **Ejecutar el script** para crear perfiles y datos:
 ```sql
 \i database/seed_delivery_cycle.sql
 ```

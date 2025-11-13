@@ -4,10 +4,13 @@
 -- Descripción: Modelo de base de datos normalizado y estandarizado para
 --              ecosistema de delivery hiperlocal (radio 3 km)
 -- 
+-- Plataforma: Supabase (PostgreSQL)
+-- Autenticación: Supabase Auth (auth.users)
+-- 
 -- Nota: El sistema de Wallet (LocalCoins) es un proyecto separado.
 --       Este schema incluye referencias externas al wallet mediante user_id.
 -- ============================================================================
--- Versión: 1.1
+-- Versión: 2.0 (Supabase Auth)
 -- Fecha: 2024-11-18
 -- ============================================================================
 
@@ -157,54 +160,48 @@ CREATE TYPE promotion_status AS ENUM (
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- USUARIOS
+-- PERFILES DE USUARIO (Relacionado con Supabase auth.users)
 -- ----------------------------------------------------------------------------
-CREATE TABLE core.users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    phone VARCHAR(20) UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
+-- Nota: Esta tabla extiende la información de auth.users de Supabase
+--       El id debe coincidir con auth.users.id
+CREATE TABLE core.user_profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    
+    -- Rol del usuario en la plataforma
     role user_role NOT NULL DEFAULT 'client',
     
     -- Información personal
     first_name VARCHAR(100),
     last_name VARCHAR(100),
+    phone VARCHAR(20) UNIQUE,
     profile_image_url TEXT,
     
-    -- Verificación y seguridad
-    email_verified BOOLEAN DEFAULT FALSE,
+    -- Verificación adicional (email ya está verificado en auth.users)
     phone_verified BOOLEAN DEFAULT FALSE,
-    verification_token VARCHAR(255),
-    reset_password_token VARCHAR(255),
-    reset_password_expires TIMESTAMP,
     
     -- Estado
     is_active BOOLEAN DEFAULT TRUE,
     is_blocked BOOLEAN DEFAULT FALSE,
-    last_login TIMESTAMP,
     
     -- Referencia externa al Wallet (Proyecto Wallet separado)
     wallet_user_id UUID, -- ID del usuario en el sistema Wallet
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT users_email_check CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_email ON core.users(email);
-CREATE INDEX idx_users_phone ON core.users(phone);
-CREATE INDEX idx_users_role ON core.users(role);
-CREATE INDEX idx_users_wallet_user_id ON core.users(wallet_user_id);
-CREATE INDEX idx_users_is_active ON core.users(is_active);
+CREATE INDEX idx_user_profiles_role ON core.user_profiles(role);
+CREATE INDEX idx_user_profiles_phone ON core.user_profiles(phone);
+CREATE INDEX idx_user_profiles_wallet_user_id ON core.user_profiles(wallet_user_id);
+CREATE INDEX idx_user_profiles_is_active ON core.user_profiles(is_active);
 
 -- ----------------------------------------------------------------------------
 -- DIRECCIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.addresses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Información de dirección
     label VARCHAR(100), -- Casa, Trabajo, etc.
@@ -239,7 +236,7 @@ CREATE INDEX idx_addresses_is_default ON core.addresses(user_id, is_default) WHE
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.businesses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    owner_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     
     -- Información del negocio
     name VARCHAR(255) NOT NULL,
@@ -464,7 +461,7 @@ CREATE TABLE orders.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Relaciones principales
-    client_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE RESTRICT,
     
     -- Estado
@@ -561,7 +558,7 @@ CREATE INDEX idx_order_items_collection_id ON orders.order_items(collection_id);
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.repartidores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Información del repartidor
     vehicle_type vehicle_type NOT NULL,
@@ -654,7 +651,7 @@ CREATE TABLE reviews.reviews (
     
     -- Relaciones
     order_id UUID NOT NULL UNIQUE REFERENCES orders.orders(id) ON DELETE CASCADE,
-    reviewer_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    reviewer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     
     -- Tipos de evaluación
     business_rating INTEGER CHECK (business_rating >= 1 AND business_rating <= 5),
@@ -681,7 +678,7 @@ CREATE TABLE reviews.tips (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
     repartidor_id UUID NOT NULL REFERENCES core.repartidores(id) ON DELETE RESTRICT,
-    client_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     
     -- Monto
     amount DECIMAL(10,2) NOT NULL CHECK (amount >= 0),
@@ -706,7 +703,7 @@ CREATE INDEX idx_tips_client_id ON reviews.tips(client_id);
 -- ----------------------------------------------------------------------------
 CREATE TABLE communication.notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Tipo y contenido
     type notification_type NOT NULL,
@@ -734,8 +731,8 @@ CREATE TABLE communication.messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Relaciones (chat entre usuarios)
-    sender_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
-    recipient_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+    recipient_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     
     -- Contexto (opcional, puede ser relacionado a un pedido)
     order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
@@ -811,7 +808,7 @@ CREATE INDEX idx_promotions_promo_code ON commerce.promotions(promo_code);
 CREATE TABLE commerce.promotion_uses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     promotion_id UUID NOT NULL REFERENCES commerce.promotions(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
     
     -- Monto aplicado
@@ -830,7 +827,7 @@ CREATE INDEX idx_promotion_uses_order_id ON commerce.promotion_uses(order_id);
 -- ----------------------------------------------------------------------------
 CREATE TABLE commerce.subscriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Tipo de suscripción
     subscription_type VARCHAR(50) NOT NULL, -- 'client_premium', 'local_premium', 'repartidor_premium'
@@ -904,7 +901,7 @@ CREATE INDEX idx_ads_dates ON commerce.ads(start_date, end_date);
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_posts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Contexto (opcional, relacionado a un pedido)
     order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
@@ -945,7 +942,7 @@ CREATE INDEX idx_social_posts_is_visible ON social.social_posts(is_visible) WHER
 CREATE TABLE social.social_likes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -962,7 +959,7 @@ CREATE INDEX idx_social_likes_user_id ON social.social_likes(user_id);
 CREATE TABLE social.social_comments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     parent_comment_id UUID REFERENCES social.social_comments(id) ON DELETE CASCADE, -- Para respuestas
     
     -- Contenido
@@ -985,8 +982,8 @@ CREATE INDEX idx_social_comments_parent_comment_id ON social.social_comments(par
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_follows (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    follower_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
-    following_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1003,7 +1000,7 @@ CREATE INDEX idx_social_follows_following_id ON social.social_follows(following_
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.user_eco_profile (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES core.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Métricas acumuladas
     total_co2_saved_kg DECIMAL(10,3) DEFAULT 0.000,
@@ -1036,6 +1033,23 @@ CREATE INDEX idx_user_eco_profile_total_co2 ON social.user_eco_profile(total_co2
 -- TRIGGERS Y FUNCIONES
 -- ============================================================================
 
+-- Función para crear perfil automáticamente cuando se crea un usuario en Supabase
+-- Esta función debe ejecutarse como trigger en auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO core.user_profiles (id, role, is_active)
+    VALUES (NEW.id, 'client', TRUE)
+    ON CONFLICT (id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Nota: El trigger debe crearse manualmente en Supabase Dashboard o ejecutar:
+-- CREATE TRIGGER on_auth_user_created
+--     AFTER INSERT ON auth.users
+--     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 -- Función para actualizar updated_at automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -1046,7 +1060,7 @@ END;
 $$ language 'plpgsql';
 
 -- Aplicar trigger a tablas con updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON core.users
+CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON core.user_profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_businesses_updated_at BEFORE UPDATE ON core.businesses
@@ -1223,7 +1237,7 @@ COMMENT ON SCHEMA communication IS 'Schema de comunicación: notificaciones, men
 COMMENT ON SCHEMA commerce IS 'Schema de comercio: promociones, suscripciones, publicidad';
 COMMENT ON SCHEMA social IS 'Schema de red social ecológica: posts, likes, comentarios, perfiles';
 
-COMMENT ON TABLE core.users IS 'Usuarios del sistema (clientes, repartidores, locales, admins)';
+COMMENT ON TABLE core.user_profiles IS 'Perfiles de usuario que extienden auth.users de Supabase (roles, información personal)';
 COMMENT ON TABLE core.businesses IS 'Locales/negocios registrados en la plataforma';
 COMMENT ON TABLE core.repartidores IS 'Información específica de repartidores';
 COMMENT ON TABLE core.addresses IS 'Direcciones de usuarios con geolocalización';
@@ -1248,7 +1262,7 @@ COMMENT ON TABLE social.social_comments IS 'Comentarios en publicaciones sociale
 COMMENT ON TABLE social.social_follows IS 'Relaciones de seguimiento entre usuarios';
 COMMENT ON TABLE social.user_eco_profile IS 'Perfil ecológico y métricas de impacto de usuarios';
 
-COMMENT ON COLUMN core.users.wallet_user_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
+COMMENT ON COLUMN core.user_profiles.wallet_user_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
 COMMENT ON COLUMN core.businesses.wallet_business_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
 COMMENT ON COLUMN core.repartidores.wallet_repartidor_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
 COMMENT ON COLUMN orders.orders.wallet_transaction_id IS 'Referencia externa a transacción en el Wallet';

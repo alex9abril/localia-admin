@@ -2,20 +2,24 @@
 -- DELIVERY ECOSYSTEM - Seed Data: Ciclo Completo de Delivery
 -- ============================================================================
 -- Descripción: Datos de ejemplo para un ciclo completo de delivery:
---              - Usuarios (cliente, repartidor, local)
+--              - Usuarios en Supabase auth.users (crear manualmente o vía API)
+--              - Perfiles de usuario en core.user_profiles
 --              - Negocio con productos y colecciones
 --              - Pedido completo
 --              - Entrega
 --              - Evaluación y propina
 -- 
--- Uso: Ejecutar después de schema.sql para poblar datos de ejemplo
+-- IMPORTANTE: Este script asume que los usuarios ya existen en auth.users
+--             Crea los usuarios primero usando Supabase Auth API o Dashboard
+-- 
+-- Uso: Ejecutar después de schema.sql y crear usuarios en Supabase Auth
 -- ============================================================================
--- Versión: 1.0
+-- Versión: 2.0 (Supabase Auth)
 -- Fecha: 2024-11-18
 -- ============================================================================
 
 -- Configurar search_path
-SET search_path TO core, catalog, orders, reviews, communication, commerce, social, public;
+SET search_path TO public, core, catalog, orders, reviews, communication, commerce, social, auth;
 
 -- ============================================================================
 -- LIMPIAR DATOS EXISTENTES (OPCIONAL - Descomentar si necesitas resetear)
@@ -33,78 +37,80 @@ DELETE FROM catalog.product_categories WHERE business_id = '11111111-1111-1111-1
 DELETE FROM core.businesses WHERE id = '11111111-1111-1111-1111-111111111111';
 DELETE FROM core.addresses WHERE user_id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111');
 DELETE FROM core.repartidores WHERE user_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-DELETE FROM core.users WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111');
+DELETE FROM core.user_profiles WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111');
+-- Nota: Los usuarios en auth.users deben eliminarse manualmente desde Supabase Dashboard
 */
 
 -- ============================================================================
--- 1. USUARIOS
+-- 1. USUARIOS Y PERFILES
 -- ============================================================================
+-- IMPORTANTE: Los usuarios deben crearse primero en Supabase Auth
+-- Usa la API de Supabase o el Dashboard para crear:
+-- 
+-- Cliente: cliente@example.com (ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa)
+-- Repartidor: repartidor@example.com (ID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb)
+-- Local: local@example.com (ID: 11111111-1111-1111-1111-111111111111)
+--
+-- O usa el script de ejemplo al final de este archivo para crear usuarios vía SQL
+-- (requiere permisos especiales en Supabase)
 
+-- Perfiles de Usuario (extienden auth.users)
 -- Cliente
-INSERT INTO core.users (
-    id, email, phone, password_hash, role, first_name, last_name,
-    email_verified, phone_verified, is_active, wallet_user_id
+INSERT INTO core.user_profiles (
+    id, role, first_name, last_name, phone,
+    phone_verified, is_active, wallet_user_id
 ) VALUES (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'cliente@example.com',
-    '+525512345678',
-    '$2b$10$example_hashed_password_here', -- En producción usar hash real
     'client',
     'Juan',
     'Pérez',
+    '+525512345678',
     TRUE,
     TRUE,
-    TRUE,
-    'wallet-user-cliente-001' -- Referencia externa al Wallet
+    'wallet-user-cliente-001'
 ) ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    phone = EXCLUDED.phone,
+    role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
-    last_name = EXCLUDED.last_name;
+    last_name = EXCLUDED.last_name,
+    phone = EXCLUDED.phone;
 
 -- Repartidor
-INSERT INTO core.users (
-    id, email, phone, password_hash, role, first_name, last_name,
-    email_verified, phone_verified, is_active, wallet_user_id
+INSERT INTO core.user_profiles (
+    id, role, first_name, last_name, phone,
+    phone_verified, is_active, wallet_user_id
 ) VALUES (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'repartidor@example.com',
-    '+525598765432',
-    '$2b$10$example_hashed_password_here',
     'repartidor',
     'Carlos',
     'González',
-    TRUE,
+    '+525598765432',
     TRUE,
     TRUE,
     'wallet-user-repartidor-001'
 ) ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    phone = EXCLUDED.phone,
+    role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
-    last_name = EXCLUDED.last_name;
+    last_name = EXCLUDED.last_name,
+    phone = EXCLUDED.phone;
 
 -- Dueño del Local
-INSERT INTO core.users (
-    id, email, phone, password_hash, role, first_name, last_name,
-    email_verified, phone_verified, is_active, wallet_user_id
+INSERT INTO core.user_profiles (
+    id, role, first_name, last_name, phone,
+    phone_verified, is_active, wallet_user_id
 ) VALUES (
     '11111111-1111-1111-1111-111111111111',
-    'local@example.com',
-    '+525555555555',
-    '$2b$10$example_hashed_password_here',
     'local',
     'María',
     'Rodríguez',
-    TRUE,
+    '+525555555555',
     TRUE,
     TRUE,
     'wallet-user-local-001'
 ) ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    phone = EXCLUDED.phone,
+    role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
-    last_name = EXCLUDED.last_name;
+    last_name = EXCLUDED.last_name,
+    phone = EXCLUDED.phone;
 
 -- ============================================================================
 -- 2. DIRECCIONES
@@ -428,10 +434,43 @@ INSERT INTO reviews.tips (
 -- VERIFICACIÓN DE DATOS INSERTADOS
 -- ============================================================================
 
+-- ============================================================================
+-- NOTA: Crear usuarios en Supabase Auth
+-- ============================================================================
+-- Para crear los usuarios en auth.users, puedes usar:
+--
+-- 1. Supabase Dashboard: Authentication > Users > Add User
+-- 2. Supabase Auth API (desde tu aplicación)
+-- 3. SQL directo (requiere permisos especiales):
+--
+-- INSERT INTO auth.users (
+--     id, instance_id, email, encrypted_password, email_confirmed_at,
+--     created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_super_admin, role
+-- ) VALUES (
+--     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+--     '00000000-0000-0000-0000-000000000000',
+--     'cliente@example.com',
+--     crypt('password123', gen_salt('bf')),
+--     NOW(),
+--     NOW(),
+--     NOW(),
+--     '{"provider": "email", "providers": ["email"]}',
+--     '{}',
+--     FALSE,
+--     'authenticated'
+-- );
+--
+-- (Repetir para los otros dos usuarios con sus respectivos IDs y emails)
+
+-- ============================================================================
+-- VERIFICACIÓN DE DATOS INSERTADOS
+-- ============================================================================
+
 -- Verificar el ciclo completo
 SELECT 
     'Ciclo de Delivery Completo' as verificacion,
-    (SELECT COUNT(*) FROM core.users WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111')) as usuarios,
+    (SELECT COUNT(*) FROM core.user_profiles WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111')) as perfiles,
+    (SELECT COUNT(*) FROM auth.users WHERE id IN ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111')) as usuarios_auth,
     (SELECT COUNT(*) FROM core.businesses WHERE id = '11111111-1111-1111-1111-111111111111') as negocios,
     (SELECT COUNT(*) FROM catalog.products WHERE business_id = '11111111-1111-1111-1111-111111111111') as productos,
     (SELECT COUNT(*) FROM catalog.collections WHERE business_id = '11111111-1111-1111-1111-111111111111') as colecciones,
