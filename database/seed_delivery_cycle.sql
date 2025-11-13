@@ -227,7 +227,7 @@ SELECT
     ST_MakePoint(-99.1619, 19.4230), -- Coordenadas La Roma
     TRUE,
     TRUE
-) ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- Dirección del Local (La Roma, CDMX)
 INSERT INTO core.addresses (
@@ -248,7 +248,7 @@ SELECT
     ST_MakePoint(-99.1600, 19.4220), -- Coordenadas cerca del cliente
     TRUE,
     TRUE
-) ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- 3. NEGOCIO
@@ -284,7 +284,7 @@ SELECT
     25,
     120,
     'wallet-business-001'
-) ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     is_active = EXCLUDED.is_active;
 
