@@ -16,10 +16,9 @@
 
 -- Extensiones PostgreSQL
 -- IMPORTANTE: Estas extensiones deben crearse con permisos de superusuario
--- Si obtienes error "function uuid_generate_v4() does not exist", ejecuta manualmente:
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
--- CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+-- En Supabase, estas extensiones ya están disponibles o se pueden habilitar desde el Dashboard
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public; -- Opcional: para gen_random_uuid()
+-- CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public; -- Requerido para geolocalización
 CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 
 -- ============================================================================
@@ -200,7 +199,7 @@ CREATE INDEX idx_user_profiles_is_active ON core.user_profiles(is_active);
 -- DIRECCIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.addresses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Información de dirección
@@ -235,7 +234,7 @@ CREATE INDEX idx_addresses_is_default ON core.addresses(user_id, is_default) WHE
 -- LOCALES / NEGOCIOS
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.businesses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     
     -- Información del negocio
@@ -304,7 +303,7 @@ CREATE INDEX idx_businesses_rating ON core.businesses(rating_average DESC);
 -- CATEGORÍAS DE PRODUCTOS
 -- ----------------------------------------------------------------------------
 CREATE TABLE catalog.product_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID REFERENCES core.businesses(id) ON DELETE CASCADE, -- NULL = categoría global
     
     -- Información de la categoría
@@ -337,7 +336,7 @@ CREATE INDEX idx_product_categories_is_active ON catalog.product_categories(is_a
 -- PRODUCTOS / MENÚ
 -- ----------------------------------------------------------------------------
 CREATE TABLE catalog.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información del producto
@@ -386,7 +385,7 @@ CREATE TYPE catalog.collection_type AS ENUM (
 );
 
 CREATE TABLE catalog.collections (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información de la colección
@@ -426,7 +425,7 @@ CREATE INDEX idx_collections_valid_dates ON catalog.collections(valid_from, vali
 -- PRODUCTOS EN COLECCIONES (Relación muchos-a-muchos)
 -- ----------------------------------------------------------------------------
 CREATE TABLE catalog.collection_products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     collection_id UUID NOT NULL REFERENCES catalog.collections(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES catalog.products(id) ON DELETE CASCADE,
     
@@ -458,7 +457,7 @@ CREATE INDEX idx_collection_products_product_id ON catalog.collection_products(p
 -- PEDIDOS
 -- ----------------------------------------------------------------------------
 CREATE TABLE orders.orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Relaciones principales
     client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -518,7 +517,7 @@ CREATE INDEX idx_orders_payment_status ON orders.orders(payment_status);
 -- ITEMS DE PEDIDO
 -- ----------------------------------------------------------------------------
 CREATE TABLE orders.order_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
     
     -- Relación: puede ser un producto individual O una colección
@@ -557,7 +556,7 @@ CREATE INDEX idx_order_items_collection_id ON orders.order_items(collection_id);
 -- REPARTIDORES
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.repartidores (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Información del repartidor
@@ -603,7 +602,7 @@ CREATE INDEX idx_repartidores_is_green ON core.repartidores(is_green_repartidor)
 -- ENTREGAS
 -- ----------------------------------------------------------------------------
 CREATE TABLE orders.deliveries (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL UNIQUE REFERENCES orders.orders(id) ON DELETE CASCADE,
     repartidor_id UUID REFERENCES core.repartidores(id) ON DELETE SET NULL,
     
@@ -647,7 +646,7 @@ CREATE INDEX idx_deliveries_delivery_location ON orders.deliveries USING GIST(de
 -- EVALUACIONES / RESEÑAS
 -- ----------------------------------------------------------------------------
 CREATE TABLE reviews.reviews (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Relaciones
     order_id UUID NOT NULL UNIQUE REFERENCES orders.orders(id) ON DELETE CASCADE,
@@ -675,7 +674,7 @@ CREATE INDEX idx_reviews_repartidor_rating ON reviews.reviews(repartidor_rating)
 -- PROPINAS
 -- ----------------------------------------------------------------------------
 CREATE TABLE reviews.tips (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
     repartidor_id UUID NOT NULL REFERENCES core.repartidores(id) ON DELETE RESTRICT,
     client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -702,7 +701,7 @@ CREATE INDEX idx_tips_client_id ON reviews.tips(client_id);
 -- NOTIFICACIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE communication.notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Tipo y contenido
@@ -728,7 +727,7 @@ CREATE INDEX idx_notifications_type ON communication.notifications(type);
 -- MENSAJES / CHAT
 -- ----------------------------------------------------------------------------
 CREATE TABLE communication.messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Relaciones (chat entre usuarios)
     sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -763,7 +762,7 @@ CREATE INDEX idx_messages_created_at ON communication.messages(created_at DESC);
 -- PROMOCIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE commerce.promotions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información
@@ -806,7 +805,7 @@ CREATE INDEX idx_promotions_promo_code ON commerce.promotions(promo_code);
 -- USO DE PROMOCIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE commerce.promotion_uses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     promotion_id UUID NOT NULL REFERENCES commerce.promotions(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
     order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
@@ -826,7 +825,7 @@ CREATE INDEX idx_promotion_uses_order_id ON commerce.promotion_uses(order_id);
 -- SUSCRIPCIONES PREMIUM
 -- ----------------------------------------------------------------------------
 CREATE TABLE commerce.subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Tipo de suscripción
@@ -859,7 +858,7 @@ CREATE INDEX idx_subscriptions_type ON commerce.subscriptions(subscription_type)
 -- PUBLICIDAD / ADS INTERNOS
 -- ----------------------------------------------------------------------------
 CREATE TABLE commerce.ads (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Tipo de anuncio
@@ -900,7 +899,7 @@ CREATE INDEX idx_ads_dates ON commerce.ads(start_date, end_date);
 -- PUBLICACIONES SOCIALES
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_posts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Contexto (opcional, relacionado a un pedido)
@@ -940,7 +939,7 @@ CREATE INDEX idx_social_posts_is_visible ON social.social_posts(is_visible) WHER
 -- LIKES EN PUBLICACIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_likes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -957,7 +956,7 @@ CREATE INDEX idx_social_likes_user_id ON social.social_likes(user_id);
 -- COMENTARIOS EN PUBLICACIONES
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_comments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     parent_comment_id UUID REFERENCES social.social_comments(id) ON DELETE CASCADE, -- Para respuestas
@@ -981,7 +980,7 @@ CREATE INDEX idx_social_comments_parent_comment_id ON social.social_comments(par
 -- SEGUIDORES (FOLLOWERS)
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.social_follows (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
@@ -999,7 +998,7 @@ CREATE INDEX idx_social_follows_following_id ON social.social_follows(following_
 -- PERFIL ECOLÓGICO DEL USUARIO
 -- ----------------------------------------------------------------------------
 CREATE TABLE social.user_eco_profile (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Métricas acumuladas

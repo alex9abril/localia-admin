@@ -11,8 +11,9 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 ## 🗄️ Estructura de la Base de Datos
 
 ### Tecnología
-- **SGBD:** PostgreSQL 12+
-- **Extensiones:** `uuid-ossp` (UUIDs), `postgis` (geolocalización)
+- **SGBD:** PostgreSQL 13+ (Supabase)
+- **Extensiones:** `postgis` (geolocalización)
+- **UUIDs:** Usa `gen_random_uuid()` nativo (no requiere extensión adicional)
 - **Organización:** Schemas por dominio funcional
 
 ### Características Principales
@@ -140,9 +141,11 @@ CREATE DATABASE delivery_ecosystem;
 # Conectar a la base de datos
 \c delivery_ecosystem
 
-# IMPORTANTE: Crear extensiones primero (requiere permisos de superusuario)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+# IMPORTANTE: Crear extensión PostGIS (requiere permisos de superusuario)
+# En Supabase, puedes habilitarla desde el Dashboard: Database > Extensions
 CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
+
+# Nota: Los UUIDs usan gen_random_uuid() nativo, no requiere extensión uuid-ossp
 
 # Ejecutar el schema (estructura)
 \i database/schema.sql
