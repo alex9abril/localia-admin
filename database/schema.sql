@@ -183,7 +183,7 @@ CREATE TABLE core.user_profiles (
     is_blocked BOOLEAN DEFAULT FALSE,
     
     -- Referencia externa al Wallet (Proyecto Wallet separado)
-    wallet_user_id UUID, -- ID del usuario en el sistema Wallet
+    wallet_user_id VARCHAR(255), -- ID del usuario en el sistema Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -281,7 +281,7 @@ CREATE TABLE core.businesses (
     total_orders INTEGER DEFAULT 0,
     
     -- Referencia externa al Wallet
-    wallet_business_id UUID, -- ID del negocio en el sistema Wallet
+    wallet_business_id VARCHAR(255), -- ID del negocio en el sistema Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -495,7 +495,7 @@ CREATE TABLE orders.orders (
     packaging_type packaging_type DEFAULT 'traditional',
     
     -- Referencias externas
-    wallet_transaction_id UUID, -- ID de transacción en el Wallet
+    wallet_transaction_id VARCHAR(255), -- ID de transacción en el Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -586,7 +586,7 @@ CREATE TABLE core.repartidores (
     is_green_repartidor BOOLEAN DEFAULT FALSE, -- Repartidor ecológico (bicicleta, eléctrico)
     
     -- Referencia externa al Wallet
-    wallet_repartidor_id UUID, -- ID del repartidor en el sistema Wallet
+    wallet_repartidor_id VARCHAR(255), -- ID del repartidor en el sistema Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -683,7 +683,7 @@ CREATE TABLE reviews.tips (
     amount DECIMAL(10,2) NOT NULL CHECK (amount >= 0),
     
     -- Referencia externa al Wallet
-    wallet_transaction_id UUID, -- ID de transacción en el Wallet
+    wallet_transaction_id VARCHAR(255), -- ID de transacción en el Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -843,7 +843,7 @@ CREATE TABLE commerce.subscriptions (
     monthly_price DECIMAL(10,2) NOT NULL,
     
     -- Referencia externa al Wallet
-    wallet_subscription_id UUID, -- ID de suscripción en el Wallet
+    wallet_subscription_id VARCHAR(255), -- ID de suscripción en el Wallet (puede ser UUID o string)
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

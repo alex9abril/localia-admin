@@ -96,14 +96,16 @@ Este schema está diseñado para trabajar con **Supabase Authentication**:
 
 ## 🔗 Integración con Wallet
 
-El sistema de **Wallet (LocalCoins)** es un proyecto separado. Este schema incluye referencias externas mediante campos UUID:
+El sistema de **Wallet (LocalCoins)** es un proyecto separado. Este schema incluye referencias externas mediante campos VARCHAR (pueden ser UUIDs o strings):
 
-- `user_profiles.wallet_user_id` - ID del usuario en el Wallet
-- `businesses.wallet_business_id` - ID del negocio en el Wallet
-- `repartidores.wallet_repartidor_id` - ID del repartidor en el Wallet
-- `orders.wallet_transaction_id` - ID de transacción en el Wallet
-- `tips.wallet_transaction_id` - ID de transacción en el Wallet
-- `subscriptions.wallet_subscription_id` - ID de suscripción en el Wallet
+- `user_profiles.wallet_user_id` - ID del usuario en el Wallet (VARCHAR)
+- `businesses.wallet_business_id` - ID del negocio en el Wallet (VARCHAR)
+- `repartidores.wallet_repartidor_id` - ID del repartidor en el Wallet (VARCHAR)
+- `orders.wallet_transaction_id` - ID de transacción en el Wallet (VARCHAR)
+- `tips.wallet_transaction_id` - ID de transacción en el Wallet (VARCHAR)
+- `subscriptions.wallet_subscription_id` - ID de suscripción en el Wallet (VARCHAR)
+
+**Nota:** Los campos de wallet usan `VARCHAR(255)` para permitir tanto UUIDs como identificadores de tipo string (ej: `'wallet-user-cliente-001'`).
 
 Estas referencias permiten la integración mediante APIs sin duplicar datos.
 
