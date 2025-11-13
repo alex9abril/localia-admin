@@ -115,7 +115,7 @@ Los scripts están organizados en tres archivos:
 ### Crear la Base de Datos
 
 ```bash
-# Conectar a PostgreSQL
+# Conectar a PostgreSQL (como superusuario)
 psql -U postgres
 
 # Crear base de datos
@@ -123,6 +123,10 @@ CREATE DATABASE delivery_ecosystem;
 
 # Conectar a la base de datos
 \c delivery_ecosystem
+
+# IMPORTANTE: Crear extensiones primero (requiere permisos de superusuario)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 
 # Ejecutar el schema (estructura)
 \i database/schema.sql

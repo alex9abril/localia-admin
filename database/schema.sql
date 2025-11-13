@@ -12,8 +12,9 @@
 -- ============================================================================
 
 -- Extensiones PostgreSQL
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "postgis";
+-- Nota: Estas extensiones deben crearse con permisos de superusuario
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 
 -- ============================================================================
 -- SCHEMAS (Organización por dominio)
