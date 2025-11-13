@@ -472,6 +472,33 @@ Para futuras modificaciones del schema, se recomienda:
 - Las coordenadas geográficas usan PostGIS `POINT` type
 - Los arrays (tags, badges) usan tipos nativos de PostgreSQL
 
+## 👥 Crear Usuarios de Prueba
+
+### create_test_users.sql
+
+Script para crear usuarios de prueba en `auth.users` de Supabase. **Ejecuta esto ANTES de ejecutar `seed_delivery_cycle.sql`**:
+
+```sql
+\i database/create_test_users.sql
+```
+
+**⚠️ Nota:** Este script puede fallar si no tienes permisos suficientes. En ese caso:
+
+1. **Usa Supabase Dashboard** (Recomendado):
+   - Ve a Authentication > Users > Add User
+   - Crea estos 3 usuarios:
+     - `cliente@example.com`
+     - `repartidor@example.com`
+     - `local@example.com`
+
+2. **O usa Supabase Auth API** desde tu aplicación
+
+3. **Luego verifica** que los usuarios existan antes de ejecutar el seed:
+```sql
+SELECT id, email FROM auth.users 
+WHERE email IN ('cliente@example.com', 'repartidor@example.com', 'local@example.com');
+```
+
 ## 🔄 Migraciones
 
 ### migration_fix_wallet_types.sql
