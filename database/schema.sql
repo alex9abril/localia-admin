@@ -12,7 +12,10 @@
 -- ============================================================================
 
 -- Extensiones PostgreSQL
--- Nota: Estas extensiones deben crearse con permisos de superusuario
+-- IMPORTANTE: Estas extensiones deben crearse con permisos de superusuario
+-- Si obtienes error "function uuid_generate_v4() does not exist", ejecuta manualmente:
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+-- CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS "postgis" WITH SCHEMA public;
 
@@ -41,8 +44,8 @@ CREATE SCHEMA IF NOT EXISTS communication;
 -- Schema de evaluaciones: Reseñas, propinas
 CREATE SCHEMA IF NOT EXISTS reviews;
 
--- Configurar search_path para usar los schemas
-SET search_path TO core, orders, catalog, social, commerce, communication, reviews, public;
+-- Configurar search_path para usar los schemas (public debe estar primero para las funciones de extensiones)
+SET search_path TO public, core, orders, catalog, social, commerce, communication, reviews;
 
 -- ============================================================================
 -- ENUMS
