@@ -35,6 +35,12 @@ Esta documentación está organizada en las siguientes secciones:
 - Roadmap de 4 semanas
 - Infraestructura
 
+### 📁 [Estructura de Repositorio](./docs/09-estructura-repositorio.md)
+- Decisión: Monorepo vs Multi-repo
+- Estructura propuesta del proyecto
+- Gestión de dependencias compartidas
+- Scripts de desarrollo
+
 ### 📊 [Gantt Conceptual](./docs/GANTT-CONCEPTUAL.md)
 - Diagrama de Gantt visual (Mermaid)
 - 9 tareas principales del MVP

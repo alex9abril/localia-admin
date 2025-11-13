@@ -224,7 +224,7 @@ SELECT
     'CDMX',
     '06700',
     'México',
-    ST_MakePoint(-99.1619, 19.4230), -- Coordenadas La Roma
+    ST_MakePoint(-99.1619, 19.4230)::point, -- Coordenadas La Roma
     TRUE,
     TRUE
 ON CONFLICT (id) DO NOTHING;
@@ -245,7 +245,7 @@ SELECT
     'CDMX',
     '06700',
     'México',
-    ST_MakePoint(-99.1600, 19.4220), -- Coordenadas cerca del cliente
+    ST_MakePoint(-99.1600, 19.4220)::point, -- Coordenadas cerca del cliente
     TRUE,
     TRUE
 ON CONFLICT (id) DO NOTHING;
@@ -272,7 +272,7 @@ SELECT
     '+525555555555',
     'contacto@restaurantelaroma.com',
     '11110000-0000-0000-0000-000000000001',
-    ST_MakePoint(-99.1600, 19.4220),
+    ST_MakePoint(-99.1600, 19.4220)::point,
     TRUE,
     TRUE,
     TRUE,
@@ -295,10 +295,10 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO catalog.product_categories (
     id, business_id, name, description, display_order, is_active
 ) VALUES
-    ('cat00001-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Tacos', 'Tacos tradicionales y especiales', 1, TRUE),
-    ('cat00001-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Hamburguesas', 'Hamburguesas artesanales', 2, TRUE),
-    ('cat00001-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Bebidas', 'Refrescos, aguas, jugos', 3, TRUE),
-    ('cat00001-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Postres', 'Dulces y postres caseros', 4, TRUE)
+    ('00000001-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', 'Tacos', 'Tacos tradicionales y especiales', 1, TRUE),
+    ('00000002-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', 'Hamburguesas', 'Hamburguesas artesanales', 2, TRUE),
+    ('00000003-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', 'Bebidas', 'Refrescos, aguas, jugos', 3, TRUE),
+    ('00000004-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', 'Postres', 'Dulces y postres caseros', 4, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -310,36 +310,36 @@ INSERT INTO catalog.products (
     is_available, is_featured, display_order
 ) VALUES
     -- Tacos
-    ('prod0001-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 
+    ('00000001-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 
      'Tacos al Pastor', 'Tacos tradicionales de pastor con piña', 35.00,
-     'cat00001-0000-0000-0000-000000000001', TRUE, TRUE, 1),
+     '00000001-0000-0000-0000-000000000010', TRUE, TRUE, 1),
     
-    ('prod0001-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
+    ('00000002-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Tacos de Suadero', 'Tacos de suadero bien dorados', 30.00,
-     'cat00001-0000-0000-0000-000000000001', TRUE, FALSE, 2),
+     '00000001-0000-0000-0000-000000000010', TRUE, FALSE, 2),
     
     -- Hamburguesas
-    ('prod0001-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111',
+    ('00000003-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Hamburguesa Clásica', 'Carne, lechuga, tomate, cebolla, queso', 120.00,
-     'cat00001-0000-0000-0000-000000000002', TRUE, TRUE, 1),
+     '00000002-0000-0000-0000-000000000010', TRUE, TRUE, 1),
     
-    ('prod0001-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111',
+    ('00000004-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Hamburguesa BBQ', 'Carne, tocino, queso, cebolla caramelizada, salsa BBQ', 150.00,
-     'cat00001-0000-0000-0000-000000000002', TRUE, FALSE, 2),
+     '00000002-0000-0000-0000-000000000010', TRUE, FALSE, 2),
     
     -- Bebidas
-    ('prod0001-0000-0000-0000-000000000005', '11111111-1111-1111-1111-111111111111',
+    ('00000005-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Coca Cola 600ml', 'Refresco de cola', 25.00,
-     'cat00001-0000-0000-0000-000000000003', TRUE, FALSE, 1),
+     '00000003-0000-0000-0000-000000000010', TRUE, FALSE, 1),
     
-    ('prod0001-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111',
+    ('00000006-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Agua de Horchata', 'Agua fresca de horchata', 30.00,
-     'cat00001-0000-0000-0000-000000000003', TRUE, TRUE, 2),
+     '00000003-0000-0000-0000-000000000010', TRUE, TRUE, 2),
     
     -- Postres
-    ('prod0001-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111',
+    ('00000007-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
      'Flan Napolitano', 'Flan casero con caramelo', 45.00,
-     'cat00001-0000-0000-0000-000000000004', TRUE, FALSE, 1)
+     '00000004-0000-0000-0000-000000000010', TRUE, FALSE, 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -366,10 +366,10 @@ INSERT INTO catalog.collections (
 INSERT INTO catalog.collection_products (
     id, collection_id, product_id, quantity, display_order
 ) VALUES
-    ('collprod1-0000-0000-0000-000000000001', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-     'prod0001-0000-0000-0000-000000000003', 2, 1), -- 2 Hamburguesas Clásicas
-    ('collprod1-0000-0000-0000-000000000002', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
-     'prod0001-0000-0000-0000-000000000005', 2, 2)  -- 2 Coca Colas
+    ('00000001-0000-0000-0000-000000000002', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+     '00000003-0000-0000-0000-000000000001', 2, 1), -- 2 Hamburguesas Clásicas
+    ('00000002-0000-0000-0000-000000000002', 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+     '00000005-0000-0000-0000-000000000001', 2, 2)  -- 2 Coca Colas
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -383,18 +383,18 @@ INSERT INTO core.repartidores (
     is_green_repartidor, wallet_repartidor_id
 )
 SELECT 
-    'repart0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000003',
     (SELECT user_id FROM seed_user_ids WHERE role_type = 'repartidor'),
     'bicycle',
     'Bicicleta de montaña roja',
     TRUE,
     TRUE,
     TRUE,
-    ST_MakePoint(-99.1590, 19.4215), -- Cerca del local
+    ST_MakePoint(-99.1590, 19.4215)::point, -- Cerca del local
     CURRENT_TIMESTAMP,
     TRUE, -- Repartidor ecológico
     'wallet-repartidor-001'
-) ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (id) DO UPDATE SET
     is_available = EXCLUDED.is_available,
     current_location = EXCLUDED.current_location;
 
@@ -412,13 +412,13 @@ INSERT INTO orders.orders (
     created_at, confirmed_at, delivered_at
 )
 SELECT 
-    'order0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000004',
     (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     '11111111-1111-1111-1111-111111111111',
     'delivered',
     'aaaa0000-0000-0000-0000-000000000001',
     'Calle Orizaba 123, Roma Norte, CDMX, 06700',
-    ST_MakePoint(-99.1619, 19.4230),
+    ST_MakePoint(-99.1619, 19.4230)::point,
     280.00,  -- Subtotal (Combo Familiar)
     44.80,   -- IVA (16%)
     30.00,   -- Costo de envío
@@ -435,7 +435,7 @@ SELECT
     CURRENT_TIMESTAMP - INTERVAL '1 hour',
     CURRENT_TIMESTAMP - INTERVAL '55 minutes',
     CURRENT_TIMESTAMP - INTERVAL '38 minutes'
-) ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- 9. ITEMS DEL PEDIDO
@@ -446,8 +446,8 @@ INSERT INTO orders.order_items (
     id, order_id, collection_id,
     item_name, item_price, quantity, item_subtotal
 ) VALUES (
-    'item0001-0000-0000-0000-000000000001',
-    'order0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000005',
+    '00000001-0000-0000-0000-000000000004',
     'cccccccc-cccc-cccc-cccc-cccccccccccc',
     'Combo Familiar',
     280.00,
@@ -460,9 +460,9 @@ INSERT INTO orders.order_items (
     id, order_id, product_id,
     item_name, item_price, quantity, item_subtotal
 ) VALUES (
-    'item0001-0000-0000-0000-000000000002',
-    'order0001-0000-0000-0000-000000000001',
-    'prod0001-0000-0000-0000-000000000007',
+    '00000002-0000-0000-0000-000000000005',
+    '00000001-0000-0000-0000-000000000004',
+    '00000007-0000-0000-0000-000000000001',
     'Flan Napolitano',
     45.00,
     1,
@@ -479,12 +479,12 @@ INSERT INTO orders.deliveries (
     distance_km, estimated_time_minutes, actual_time_minutes,
     assigned_at, picked_up_at, delivered_at
 ) VALUES (
-    'deliv0001-0000-0000-0000-000000000001',
-    'order0001-0000-0000-0000-000000000001',
-    'repart0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000006',
+    '00000001-0000-0000-0000-000000000004',
+    '00000001-0000-0000-0000-000000000003',
     'delivered',
-    ST_MakePoint(-99.1600, 19.4220), -- Ubicación del local
-    ST_MakePoint(-99.1619, 19.4230), -- Ubicación del cliente
+    ST_MakePoint(-99.1600, 19.4220)::point, -- Ubicación del local
+    ST_MakePoint(-99.1619, 19.4230)::point, -- Ubicación del cliente
     0.8,  -- 0.8 km de distancia
     25,   -- 25 minutos estimados
     22,   -- 22 minutos reales
@@ -503,14 +503,14 @@ INSERT INTO reviews.reviews (
     business_comment, repartidor_comment
 )
 SELECT 
-    'review0001-0000-0000-0000-000000000001',
-    'order0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000007',
+    '00000001-0000-0000-0000-000000000004',
     (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     5,  -- 5 estrellas al negocio
     5,  -- 5 estrellas al repartidor
     'Excelente comida, muy rica y bien presentada. El empaque ecológico es un plus.',
     'Muy puntual y amable. Llegó en bicicleta, muy ecológico. Recomendado.'
-) ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- 12. PROPINA
@@ -521,13 +521,13 @@ INSERT INTO reviews.tips (
     amount, wallet_transaction_id
 )
 SELECT 
-    'tip00001-0000-0000-0000-000000000001',
-    'order0001-0000-0000-0000-000000000001',
-    'repart0001-0000-0000-0000-000000000001',
+    '00000001-0000-0000-0000-000000000008',
+    '00000001-0000-0000-0000-000000000004',
+    '00000001-0000-0000-0000-000000000003',
     (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     50.00,
     'wallet-txn-tip-001'
-) ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- VERIFICACIÓN DE DATOS INSERTADOS
@@ -596,11 +596,11 @@ SELECT
     (SELECT COUNT(*) FROM core.businesses WHERE id = '11111111-1111-1111-1111-111111111111') as negocios,
     (SELECT COUNT(*) FROM catalog.products WHERE business_id = '11111111-1111-1111-1111-111111111111') as productos,
     (SELECT COUNT(*) FROM catalog.collections WHERE business_id = '11111111-1111-1111-1111-111111111111') as colecciones,
-    (SELECT COUNT(*) FROM orders.orders WHERE id = 'order0001-0000-0000-0000-000000000001') as pedidos,
-    (SELECT COUNT(*) FROM orders.order_items WHERE order_id = 'order0001-0000-0000-0000-000000000001') as items,
-    (SELECT COUNT(*) FROM orders.deliveries WHERE order_id = 'order0001-0000-0000-0000-000000000001') as entregas,
-    (SELECT COUNT(*) FROM reviews.reviews WHERE order_id = 'order0001-0000-0000-0000-000000000001') as evaluaciones,
-    (SELECT COUNT(*) FROM reviews.tips WHERE order_id = 'order0001-0000-0000-0000-000000000001') as propinas;
+    (SELECT COUNT(*) FROM orders.orders WHERE id = '00000001-0000-0000-0000-000000000004') as pedidos,
+    (SELECT COUNT(*) FROM orders.order_items WHERE order_id = '00000001-0000-0000-0000-000000000004') as items,
+    (SELECT COUNT(*) FROM orders.deliveries WHERE order_id = '00000001-0000-0000-0000-000000000004') as entregas,
+    (SELECT COUNT(*) FROM reviews.reviews WHERE order_id = '00000001-0000-0000-0000-000000000004') as evaluaciones,
+    (SELECT COUNT(*) FROM reviews.tips WHERE order_id = '00000001-0000-0000-0000-000000000004') as propinas;
 
 -- ============================================================================
 -- FIN DEL SCRIPT DE CICLO COMPLETO
