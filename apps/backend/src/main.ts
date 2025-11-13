@@ -1,9 +1,25 @@
+// IMPORTANTE: Cargar variables de entorno ANTES de importar módulos
+import './config/env.loader';
+
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Validación global de DTOs
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Elimina propiedades que no están en el DTO
+      forbidNonWhitelisted: true, // Lanza error si hay propiedades no permitidas
+      transform: true, // Transforma automáticamente los tipos
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
   
   // CORS
   app.enableCors({
@@ -29,6 +45,15 @@ async function bootstrap() {
         in: 'header',
       },
       'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controller!
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-API-Key',
+        description: 'Enter API Key for application authentication',
+      },
+      'ApiKey', // Name for @ApiSecurity('ApiKey')
     )
     .addTag('auth', 'Endpoints de autenticación')
     .addTag('health', 'Health checks y monitoreo')

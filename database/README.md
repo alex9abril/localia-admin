@@ -7,6 +7,8 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 - **`schema.sql`**: Script SQL con la estructura completa de la base de datos (tablas, índices, triggers, funciones)
 - **`seed_catalog.sql`**: Script para poblar datos de catálogo (categorías globales de ejemplo)
 - **`seed_delivery_cycle.sql`**: Script completo con un ciclo de delivery de ejemplo (usuarios, negocio, productos, pedido, entrega, evaluación, propina)
+- **`seed_roles_catalog.sql`**: ⚠️ OPCIONAL - Script de catálogo de roles para documentación (no necesario para funcionamiento)
+- **`api_keys_schema.sql`**: Script para crear tablas de API Keys y tracking de peticiones (sistema de autenticación de aplicaciones)
 
 ## 🗄️ Estructura de la Base de Datos
 
@@ -511,6 +513,79 @@ Intenta crear usuarios y perfiles, pero requiere permisos de `service_role`. Gen
 ```sql
 SELECT id, email FROM auth.users 
 WHERE email IN ('cliente@example.com', 'repartidor@example.com', 'local@example.com');
+```
+
+## 👥 Roles del Sistema
+
+### Roles Definidos (ENUM - OBLIGATORIO)
+
+Los roles están definidos como **ENUM** en `schema.sql` (esto es lo que realmente usa la base de datos):
+
+```sql
+CREATE TYPE user_role AS ENUM (
+    'client',      -- Cliente
+    'repartidor',  -- Repartidor
+    'local',       -- Dueño/Gerente de local
+    'admin'        -- Administrador del sistema
+);
+```
+
+**Estos 4 roles son los únicos válidos en el sistema:**
+1. **`client`** - Cliente (usuario final)
+2. **`repartidor`** - Repartidor (realiza entregas)
+3. **`local`** - Dueño/Gerente de Local (gestiona negocio)
+4. **`admin`** - Administrador del Sistema (acceso completo)
+
+### Catálogo de Roles (OPCIONAL - Solo para documentación)
+
+⚠️ **IMPORTANTE:** El script `seed_roles_catalog.sql` es **OPCIONAL**. Solo crea una tabla de documentación.
+
+**Si NO necesitas documentación de permisos, NO ejecutes este script.**
+
+El catálogo crea:
+- Tabla `core.roles_catalog` (solo para consultas/documentación)
+- Vista `core.roles_with_user_count` (estadísticas)
+- Vista `core.user_profiles_with_role_info` (combina user_profiles con info del catálogo)
+- Funciones `get_role_permissions()`, `has_permission()`, `get_user_permissions()`, `user_has_permission()`
+
+**Los roles funcionan perfectamente solo con el ENUM.**
+
+### Relación entre `user_profiles` y `roles_catalog`
+
+**Relación lógica (no hay Foreign Key directa):**
+- `user_profiles.role` (tipo: `user_role` ENUM) → valores: `'client'`, `'repartidor'`, `'local'`, `'admin'`
+- `roles_catalog.role_code` (tipo: `VARCHAR`) → debe coincidir con los valores del ENUM
+- **JOIN:** `user_profiles.role::text = roles_catalog.role_code`
+
+**Ejemplo de consulta:**
+```sql
+-- Ver usuarios con información del catálogo de roles
+SELECT 
+    up.id,
+    up.first_name,
+    up.last_name,
+    up.role,
+    rc.role_name,
+    rc.description,
+    rc.permissions
+FROM core.user_profiles up
+LEFT JOIN core.roles_catalog rc ON up.role::text = rc.role_code
+WHERE up.is_active = TRUE;
+```
+
+**O usar la vista predefinida:**
+```sql
+-- Vista que ya combina user_profiles con catálogo de roles
+SELECT * FROM core.user_profiles_with_role_info WHERE is_active = TRUE;
+```
+
+**Verificar permisos de un usuario:**
+```sql
+-- Obtener todos los permisos de un usuario
+SELECT core.get_user_permissions('user-uuid-here');
+
+-- Verificar si un usuario tiene un permiso específico
+SELECT core.user_has_permission('user-uuid-here', 'can_order');
 ```
 
 ## 🔄 Migraciones
