@@ -472,6 +472,26 @@ Para futuras modificaciones del schema, se recomienda:
 - Las coordenadas geográficas usan PostGIS `POINT` type
 - Los arrays (tags, badges) usan tipos nativos de PostgreSQL
 
+## 🔄 Migraciones
+
+### migration_fix_wallet_types.sql
+
+Si ya tienes las tablas creadas y necesitas cambiar los campos de wallet de `UUID` a `VARCHAR(255)`:
+
+```sql
+\i database/migration_fix_wallet_types.sql
+```
+
+Este script altera las siguientes columnas:
+- `core.user_profiles.wallet_user_id`
+- `core.businesses.wallet_business_id`
+- `core.repartidores.wallet_repartidor_id`
+- `orders.orders.wallet_transaction_id`
+- `reviews.tips.wallet_transaction_id`
+- `commerce.subscriptions.wallet_subscription_id`
+
+**Nota:** Si estás creando el schema desde cero, no necesitas ejecutar esta migración.
+
 ## 📝 Scripts de Seed Data
 
 ### seed_catalog.sql
