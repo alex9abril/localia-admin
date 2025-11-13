@@ -217,7 +217,7 @@ CREATE TABLE core.addresses (
     location POINT, -- (longitude, latitude)
     
     -- Referencias adicionales
-    references TEXT, -- Referencias adicionales para encontrar el lugar
+    additional_references TEXT, -- Referencias adicionales para encontrar el lugar
     is_default BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     
@@ -677,7 +677,7 @@ CREATE TABLE reviews.tips (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
     repartidor_id UUID NOT NULL REFERENCES core.repartidores(id) ON DELETE RESTRICT,
-    client_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    client_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
     
     -- Monto
     amount DECIMAL(10,2) NOT NULL CHECK (amount >= 0),
@@ -807,7 +807,7 @@ CREATE INDEX idx_promotions_promo_code ON commerce.promotions(promo_code);
 CREATE TABLE commerce.promotion_uses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     promotion_id UUID NOT NULL REFERENCES commerce.promotions(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
     order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
     
     -- Monto aplicado
