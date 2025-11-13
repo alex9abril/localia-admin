@@ -1,8 +1,8 @@
 -- ============================================================================
--- LOCALIA - Database Schema
+-- DELIVERY ECOSYSTEM - Database Schema
 -- ============================================================================
 -- Descripción: Modelo de base de datos normalizado y estandarizado para
---              la plataforma LOCALIA (delivery hiperlocal)
+--              ecosistema de delivery hiperlocal (radio 3 km)
 -- 
 -- Nota: El sistema de Wallet (LocalCoins) es un proyecto separado.
 --       Este schema incluye referencias externas al wallet mediante user_id.

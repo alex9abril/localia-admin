@@ -97,10 +97,10 @@ Estas referencias permiten la integración mediante APIs sin duplicar datos.
 psql -U postgres
 
 # Crear base de datos
-CREATE DATABASE localia_db;
+CREATE DATABASE delivery_ecosystem;
 
 # Conectar a la base de datos
-\c localia_db
+\c delivery_ecosystem
 
 # Ejecutar el schema
 \i database/schema.sql
