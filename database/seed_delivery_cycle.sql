@@ -88,16 +88,63 @@ WHERE id IN (
 */
 
 -- ============================================================================
+-- OBTENER IDs REALES DE USUARIOS (por email)
+-- ============================================================================
+-- Este script busca usuarios por EMAIL y usa los IDs reales que Supabase generó
+-- ⚠️ Asegúrate de que los usuarios existan en auth.users con estos emails:
+--    - cliente@example.com
+--    - repartidor@example.com
+--    - local@example.com
+
+DO $$
+DECLARE
+    v_cliente_id UUID;
+    v_repartidor_id UUID;
+    v_local_id UUID;
+BEGIN
+    -- Obtener IDs reales
+    SELECT id INTO v_cliente_id FROM auth.users WHERE email = 'cliente@example.com' LIMIT 1;
+    SELECT id INTO v_repartidor_id FROM auth.users WHERE email = 'repartidor@example.com' LIMIT 1;
+    SELECT id INTO v_local_id FROM auth.users WHERE email = 'local@example.com' LIMIT 1;
+    
+    -- Verificar que todos los usuarios existan
+    IF v_cliente_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario cliente@example.com no encontrado en auth.users';
+    END IF;
+    IF v_repartidor_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario repartidor@example.com no encontrado en auth.users';
+    END IF;
+    IF v_local_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario local@example.com no encontrado en auth.users';
+    END IF;
+    
+    -- Guardar IDs en una tabla temporal para uso posterior
+    CREATE TEMP TABLE IF NOT EXISTS seed_user_ids (
+        role_type VARCHAR(20) PRIMARY KEY,
+        user_id UUID NOT NULL
+    );
+    
+    DELETE FROM seed_user_ids;
+    INSERT INTO seed_user_ids VALUES 
+        ('cliente', v_cliente_id),
+        ('repartidor', v_repartidor_id),
+        ('local', v_local_id);
+    
+    RAISE NOTICE 'IDs obtenidos - Cliente: %, Repartidor: %, Local: %', 
+        v_cliente_id, v_repartidor_id, v_local_id;
+END $$;
+
+-- ============================================================================
 -- PERFILES DE USUARIO (extienden auth.users)
 -- ============================================================================
--- ⚠️ Solo ejecuta esto DESPUÉS de crear los usuarios en auth.users
 
 -- Cliente
 INSERT INTO core.user_profiles (
     id, role, first_name, last_name, phone,
     phone_verified, is_active, wallet_user_id
-) VALUES (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+)
+SELECT 
+    user_id,
     'client',
     'Juan',
     'Pérez',
@@ -105,7 +152,9 @@ INSERT INTO core.user_profiles (
     TRUE,
     TRUE,
     'wallet-user-cliente-001'
-) ON CONFLICT (id) DO UPDATE SET
+FROM seed_user_ids
+WHERE role_type = 'cliente'
+ON CONFLICT (id) DO UPDATE SET
     role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
@@ -115,8 +164,9 @@ INSERT INTO core.user_profiles (
 INSERT INTO core.user_profiles (
     id, role, first_name, last_name, phone,
     phone_verified, is_active, wallet_user_id
-) VALUES (
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+)
+SELECT 
+    user_id,
     'repartidor',
     'Carlos',
     'González',
@@ -124,7 +174,9 @@ INSERT INTO core.user_profiles (
     TRUE,
     TRUE,
     'wallet-user-repartidor-001'
-) ON CONFLICT (id) DO UPDATE SET
+FROM seed_user_ids
+WHERE role_type = 'repartidor'
+ON CONFLICT (id) DO UPDATE SET
     role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
@@ -134,8 +186,9 @@ INSERT INTO core.user_profiles (
 INSERT INTO core.user_profiles (
     id, role, first_name, last_name, phone,
     phone_verified, is_active, wallet_user_id
-) VALUES (
-    '11111111-1111-1111-1111-111111111111',
+)
+SELECT 
+    user_id,
     'local',
     'María',
     'Rodríguez',
@@ -143,7 +196,9 @@ INSERT INTO core.user_profiles (
     TRUE,
     TRUE,
     'wallet-user-local-001'
-) ON CONFLICT (id) DO UPDATE SET
+FROM seed_user_ids
+WHERE role_type = 'local'
+ON CONFLICT (id) DO UPDATE SET
     role = EXCLUDED.role,
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
@@ -157,9 +212,10 @@ INSERT INTO core.user_profiles (
 INSERT INTO core.addresses (
     id, user_id, label, street, street_number, neighborhood,
     city, state, postal_code, country, location, is_default, is_active
-) VALUES (
+)
+SELECT 
     'aaaa0000-0000-0000-0000-000000000001',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     'Casa',
     'Calle Orizaba',
     '123',
@@ -177,9 +233,10 @@ INSERT INTO core.addresses (
 INSERT INTO core.addresses (
     id, user_id, label, street, street_number, neighborhood,
     city, state, postal_code, country, location, is_default, is_active
-) VALUES (
+)
+SELECT 
     '11110000-0000-0000-0000-000000000001',
-    '11111111-1111-1111-1111-111111111111',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'local'),
     'Local',
     'Avenida Álvaro Obregón',
     '45',
@@ -204,9 +261,10 @@ INSERT INTO core.businesses (
     commission_rate, uses_eco_packaging, packaging_type,
     opening_hours, rating_average, total_reviews, total_orders,
     wallet_business_id
-) VALUES (
+)
+SELECT 
     '11111111-1111-1111-1111-111111111111',
-    '11111111-1111-1111-1111-111111111111',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'local'),
     'Restaurante La Roma',
     'Restaurante La Roma S.A. de C.V.',
     'Restaurante de comida mexicana e internacional en el corazón de La Roma',
@@ -323,9 +381,10 @@ INSERT INTO core.repartidores (
     is_available, is_verified, is_active,
     current_location, last_location_update,
     is_green_repartidor, wallet_repartidor_id
-) VALUES (
+)
+SELECT 
     'repart0001-0000-0000-0000-000000000001',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'repartidor'),
     'bicycle',
     'Bicicleta de montaña roja',
     TRUE,
@@ -351,9 +410,10 @@ INSERT INTO orders.orders (
     estimated_delivery_time, actual_delivery_time,
     packaging_type, wallet_transaction_id,
     created_at, confirmed_at, delivered_at
-) VALUES (
+)
+SELECT 
     'order0001-0000-0000-0000-000000000001',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     '11111111-1111-1111-1111-111111111111',
     'delivered',
     'aaaa0000-0000-0000-0000-000000000001',
@@ -441,10 +501,11 @@ INSERT INTO reviews.reviews (
     id, order_id, reviewer_id,
     business_rating, repartidor_rating,
     business_comment, repartidor_comment
-) VALUES (
+)
+SELECT 
     'review0001-0000-0000-0000-000000000001',
     'order0001-0000-0000-0000-000000000001',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     5,  -- 5 estrellas al negocio
     5,  -- 5 estrellas al repartidor
     'Excelente comida, muy rica y bien presentada. El empaque ecológico es un plus.',
@@ -458,11 +519,12 @@ INSERT INTO reviews.reviews (
 INSERT INTO reviews.tips (
     id, order_id, repartidor_id, client_id,
     amount, wallet_transaction_id
-) VALUES (
+)
+SELECT 
     'tip00001-0000-0000-0000-000000000001',
     'order0001-0000-0000-0000-000000000001',
     'repart0001-0000-0000-0000-000000000001',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    (SELECT user_id FROM seed_user_ids WHERE role_type = 'cliente'),
     50.00,
     'wallet-txn-tip-001'
 ) ON CONFLICT (id) DO NOTHING;
