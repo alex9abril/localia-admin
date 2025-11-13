@@ -7,13 +7,41 @@
 -- Nota: El sistema de Wallet (LocalCoins) es un proyecto separado.
 --       Este schema incluye referencias externas al wallet mediante user_id.
 -- ============================================================================
--- Versión: 1.0
+-- Versión: 1.1
 -- Fecha: 2024-11-18
 -- ============================================================================
 
 -- Extensiones PostgreSQL
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
+
+-- ============================================================================
+-- SCHEMAS (Organización por dominio)
+-- ============================================================================
+
+-- Schema principal (core): Usuarios, negocios, productos, categorías
+CREATE SCHEMA IF NOT EXISTS core;
+
+-- Schema de pedidos: Pedidos, items, entregas
+CREATE SCHEMA IF NOT EXISTS orders;
+
+-- Schema de catálogo: Productos, categorías, colecciones
+CREATE SCHEMA IF NOT EXISTS catalog;
+
+-- Schema de red social: Publicaciones, likes, comentarios, perfiles ecológicos
+CREATE SCHEMA IF NOT EXISTS social;
+
+-- Schema de comercio: Promociones, suscripciones, publicidad
+CREATE SCHEMA IF NOT EXISTS commerce;
+
+-- Schema de comunicación: Notificaciones, mensajes
+CREATE SCHEMA IF NOT EXISTS communication;
+
+-- Schema de evaluaciones: Reseñas, propinas
+CREATE SCHEMA IF NOT EXISTS reviews;
+
+-- Configurar search_path para usar los schemas
+SET search_path TO core, orders, catalog, social, commerce, communication, reviews, public;
 
 -- ============================================================================
 -- ENUMS
@@ -120,10 +148,14 @@ CREATE TYPE promotion_status AS ENUM (
 -- TABLAS PRINCIPALES
 -- ============================================================================
 
+-- ============================================================================
+-- SCHEMA: core
+-- ============================================================================
+
 -- ----------------------------------------------------------------------------
 -- USUARIOS
 -- ----------------------------------------------------------------------------
-CREATE TABLE users (
+CREATE TABLE core.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20) UNIQUE,
@@ -157,18 +189,18 @@ CREATE TABLE users (
     CONSTRAINT users_email_check CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_wallet_user_id ON users(wallet_user_id);
-CREATE INDEX idx_users_is_active ON users(is_active);
+CREATE INDEX idx_users_email ON core.users(email);
+CREATE INDEX idx_users_phone ON core.users(phone);
+CREATE INDEX idx_users_role ON core.users(role);
+CREATE INDEX idx_users_wallet_user_id ON core.users(wallet_user_id);
+CREATE INDEX idx_users_is_active ON core.users(is_active);
 
 -- ----------------------------------------------------------------------------
 -- DIRECCIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE addresses (
+CREATE TABLE core.addresses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Información de dirección
     label VARCHAR(100), -- Casa, Trabajo, etc.
@@ -194,16 +226,16 @@ CREATE TABLE addresses (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_addresses_user_id ON addresses(user_id);
-CREATE INDEX idx_addresses_location ON addresses USING GIST(location);
-CREATE INDEX idx_addresses_is_default ON addresses(user_id, is_default) WHERE is_default = TRUE;
+CREATE INDEX idx_addresses_user_id ON core.addresses(user_id);
+CREATE INDEX idx_addresses_location ON core.addresses USING GIST(location);
+CREATE INDEX idx_addresses_is_default ON core.addresses(user_id, is_default) WHERE is_default = TRUE;
 
 -- ----------------------------------------------------------------------------
 -- LOCALES / NEGOCIOS
 -- ----------------------------------------------------------------------------
-CREATE TABLE businesses (
+CREATE TABLE core.businesses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    owner_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
     
     -- Información del negocio
     name VARCHAR(255) NOT NULL,
@@ -222,7 +254,7 @@ CREATE TABLE businesses (
     website_url TEXT,
     
     -- Dirección principal
-    address_id UUID REFERENCES addresses(id) ON DELETE SET NULL,
+    address_id UUID REFERENCES core.addresses(id) ON DELETE SET NULL,
     
     -- Geolocalización
     location POINT NOT NULL, -- (longitude, latitude)
@@ -256,19 +288,23 @@ CREATE TABLE businesses (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_businesses_owner_id ON businesses(owner_id);
-CREATE INDEX idx_businesses_location ON businesses USING GIST(location);
-CREATE INDEX idx_businesses_is_active ON businesses(is_active);
-CREATE INDEX idx_businesses_category ON businesses(category);
-CREATE INDEX idx_businesses_tags ON businesses USING GIN(tags);
-CREATE INDEX idx_businesses_rating ON businesses(rating_average DESC);
+CREATE INDEX idx_businesses_owner_id ON core.businesses(owner_id);
+CREATE INDEX idx_businesses_location ON core.businesses USING GIST(location);
+CREATE INDEX idx_businesses_is_active ON core.businesses(is_active);
+CREATE INDEX idx_businesses_category ON core.businesses(category);
+CREATE INDEX idx_businesses_tags ON core.businesses USING GIN(tags);
+CREATE INDEX idx_businesses_rating ON core.businesses(rating_average DESC);
+
+-- ============================================================================
+-- SCHEMA: catalog
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- CATEGORÍAS DE PRODUCTOS
 -- ----------------------------------------------------------------------------
-CREATE TABLE product_categories (
+CREATE TABLE catalog.product_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    business_id UUID REFERENCES businesses(id) ON DELETE CASCADE, -- NULL = categoría global
+    business_id UUID REFERENCES core.businesses(id) ON DELETE CASCADE, -- NULL = categoría global
     
     -- Información de la categoría
     name VARCHAR(100) NOT NULL,
@@ -276,7 +312,7 @@ CREATE TABLE product_categories (
     icon_url TEXT,
     
     -- Jerarquía (categorías padre/hijo)
-    parent_category_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
+    parent_category_id UUID REFERENCES catalog.product_categories(id) ON DELETE SET NULL,
     
     -- Orden de visualización
     display_order INTEGER DEFAULT 0,
@@ -292,16 +328,16 @@ CREATE TABLE product_categories (
     UNIQUE(business_id, name)
 );
 
-CREATE INDEX idx_product_categories_business_id ON product_categories(business_id);
-CREATE INDEX idx_product_categories_parent_id ON product_categories(parent_category_id);
-CREATE INDEX idx_product_categories_is_active ON product_categories(is_active);
+CREATE INDEX idx_product_categories_business_id ON catalog.product_categories(business_id);
+CREATE INDEX idx_product_categories_parent_id ON catalog.product_categories(parent_category_id);
+CREATE INDEX idx_product_categories_is_active ON catalog.product_categories(is_active);
 
 -- ----------------------------------------------------------------------------
 -- PRODUCTOS / MENÚ
 -- ----------------------------------------------------------------------------
-CREATE TABLE products (
+CREATE TABLE catalog.products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información del producto
     name VARCHAR(255) NOT NULL,
@@ -312,7 +348,7 @@ CREATE TABLE products (
     price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
     
     -- Categoría del producto (normalizada)
-    category_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
+    category_id UUID REFERENCES catalog.product_categories(id) ON DELETE SET NULL,
     
     -- Disponibilidad
     is_available BOOLEAN DEFAULT TRUE,
@@ -333,24 +369,24 @@ CREATE TABLE products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_products_business_id ON products(business_id);
-CREATE INDEX idx_products_category_id ON products(category_id);
-CREATE INDEX idx_products_is_available ON products(business_id, is_available);
-CREATE INDEX idx_products_is_featured ON products(business_id, is_featured);
+CREATE INDEX idx_products_business_id ON catalog.products(business_id);
+CREATE INDEX idx_products_category_id ON catalog.products(category_id);
+CREATE INDEX idx_products_is_available ON catalog.products(business_id, is_available);
+CREATE INDEX idx_products_is_featured ON catalog.products(business_id, is_featured);
 
 -- ----------------------------------------------------------------------------
 -- COLECCIONES (COMBOS, MENÚS, PAQUETES)
 -- ----------------------------------------------------------------------------
-CREATE TYPE collection_type AS ENUM (
+CREATE TYPE catalog.collection_type AS ENUM (
     'combo',           -- Combo fijo de productos
     'menu_del_dia',    -- Menú del día
     'paquete',         -- Paquete promocional
     'promocion_bundle' -- Bundle promocional
 );
 
-CREATE TABLE collections (
+CREATE TABLE catalog.collections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información de la colección
     name VARCHAR(255) NOT NULL,
@@ -380,18 +416,18 @@ CREATE TABLE collections (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_collections_business_id ON collections(business_id);
-CREATE INDEX idx_collections_type ON collections(type);
-CREATE INDEX idx_collections_is_available ON collections(business_id, is_available);
-CREATE INDEX idx_collections_valid_dates ON collections(valid_from, valid_until);
+CREATE INDEX idx_collections_business_id ON catalog.collections(business_id);
+CREATE INDEX idx_collections_type ON catalog.collections(type);
+CREATE INDEX idx_collections_is_available ON catalog.collections(business_id, is_available);
+CREATE INDEX idx_collections_valid_dates ON catalog.collections(valid_from, valid_until);
 
 -- ----------------------------------------------------------------------------
 -- PRODUCTOS EN COLECCIONES (Relación muchos-a-muchos)
 -- ----------------------------------------------------------------------------
-CREATE TABLE collection_products (
+CREATE TABLE catalog.collection_products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    collection_id UUID NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    collection_id UUID NOT NULL REFERENCES catalog.collections(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES catalog.products(id) ON DELETE CASCADE,
     
     -- Cantidad del producto en la colección
     quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
@@ -410,24 +446,28 @@ CREATE TABLE collection_products (
     UNIQUE(collection_id, product_id, quantity)
 );
 
-CREATE INDEX idx_collection_products_collection_id ON collection_products(collection_id);
-CREATE INDEX idx_collection_products_product_id ON collection_products(product_id);
+CREATE INDEX idx_collection_products_collection_id ON catalog.collection_products(collection_id);
+CREATE INDEX idx_collection_products_product_id ON catalog.collection_products(product_id);
+
+-- ============================================================================
+-- SCHEMA: orders
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- PEDIDOS
 -- ----------------------------------------------------------------------------
-CREATE TABLE orders (
+CREATE TABLE orders.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Relaciones principales
-    client_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE RESTRICT,
+    client_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE RESTRICT,
     
     -- Estado
     status order_status NOT NULL DEFAULT 'pending',
     
     -- Direcciones
-    delivery_address_id UUID REFERENCES addresses(id) ON DELETE SET NULL,
+    delivery_address_id UUID REFERENCES core.addresses(id) ON DELETE SET NULL,
     delivery_address_text TEXT, -- Dirección completa como texto
     
     -- Geolocalización de entrega
@@ -466,23 +506,23 @@ CREATE TABLE orders (
     cancellation_reason TEXT
 );
 
-CREATE INDEX idx_orders_client_id ON orders(client_id);
-CREATE INDEX idx_orders_business_id ON orders(business_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
-CREATE INDEX idx_orders_delivery_location ON orders USING GIST(delivery_location);
-CREATE INDEX idx_orders_payment_status ON orders(payment_status);
+CREATE INDEX idx_orders_client_id ON orders.orders(client_id);
+CREATE INDEX idx_orders_business_id ON orders.orders(business_id);
+CREATE INDEX idx_orders_status ON orders.orders(status);
+CREATE INDEX idx_orders_created_at ON orders.orders(created_at DESC);
+CREATE INDEX idx_orders_delivery_location ON orders.orders USING GIST(delivery_location);
+CREATE INDEX idx_orders_payment_status ON orders.orders(payment_status);
 
 -- ----------------------------------------------------------------------------
 -- ITEMS DE PEDIDO
 -- ----------------------------------------------------------------------------
-CREATE TABLE order_items (
+CREATE TABLE orders.order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
     
     -- Relación: puede ser un producto individual O una colección
-    product_id UUID REFERENCES products(id) ON DELETE SET NULL,
-    collection_id UUID REFERENCES collections(id) ON DELETE SET NULL,
+    product_id UUID REFERENCES catalog.products(id) ON DELETE SET NULL,
+    collection_id UUID REFERENCES catalog.collections(id) ON DELETE SET NULL,
     
     -- Constraint: debe ser producto O colección, no ambos ni ninguno
     CONSTRAINT order_items_item_check CHECK (
@@ -508,16 +548,16 @@ CREATE TABLE order_items (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX idx_order_items_product_id ON order_items(product_id);
-CREATE INDEX idx_order_items_collection_id ON order_items(collection_id);
+CREATE INDEX idx_order_items_order_id ON orders.order_items(order_id);
+CREATE INDEX idx_order_items_product_id ON orders.order_items(product_id);
+CREATE INDEX idx_order_items_collection_id ON orders.order_items(collection_id);
 
 -- ----------------------------------------------------------------------------
 -- REPARTIDORES
 -- ----------------------------------------------------------------------------
-CREATE TABLE repartidores (
+CREATE TABLE core.repartidores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL UNIQUE REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Información del repartidor
     vehicle_type vehicle_type NOT NULL,
@@ -553,18 +593,18 @@ CREATE TABLE repartidores (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_repartidores_user_id ON repartidores(user_id);
-CREATE INDEX idx_repartidores_is_available ON repartidores(is_available) WHERE is_available = TRUE;
-CREATE INDEX idx_repartidores_current_location ON repartidores USING GIST(current_location);
-CREATE INDEX idx_repartidores_is_green ON repartidores(is_green_repartidor);
+CREATE INDEX idx_repartidores_user_id ON core.repartidores(user_id);
+CREATE INDEX idx_repartidores_is_available ON core.repartidores(is_available) WHERE is_available = TRUE;
+CREATE INDEX idx_repartidores_current_location ON core.repartidores USING GIST(current_location);
+CREATE INDEX idx_repartidores_is_green ON core.repartidores(is_green_repartidor);
 
 -- ----------------------------------------------------------------------------
 -- ENTREGAS
 -- ----------------------------------------------------------------------------
-CREATE TABLE deliveries (
+CREATE TABLE orders.deliveries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
-    repartidor_id UUID REFERENCES repartidores(id) ON DELETE SET NULL,
+    order_id UUID NOT NULL UNIQUE REFERENCES orders.orders(id) ON DELETE CASCADE,
+    repartidor_id UUID REFERENCES core.repartidores(id) ON DELETE SET NULL,
     
     -- Estado
     status delivery_status NOT NULL DEFAULT 'available',
@@ -592,21 +632,25 @@ CREATE TABLE deliveries (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_deliveries_order_id ON deliveries(order_id);
-CREATE INDEX idx_deliveries_repartidor_id ON deliveries(repartidor_id);
-CREATE INDEX idx_deliveries_status ON deliveries(status);
-CREATE INDEX idx_deliveries_pickup_location ON deliveries USING GIST(pickup_location);
-CREATE INDEX idx_deliveries_delivery_location ON deliveries USING GIST(delivery_location);
+CREATE INDEX idx_deliveries_order_id ON orders.deliveries(order_id);
+CREATE INDEX idx_deliveries_repartidor_id ON orders.deliveries(repartidor_id);
+CREATE INDEX idx_deliveries_status ON orders.deliveries(status);
+CREATE INDEX idx_deliveries_pickup_location ON orders.deliveries USING GIST(pickup_location);
+CREATE INDEX idx_deliveries_delivery_location ON orders.deliveries USING GIST(delivery_location);
+
+-- ============================================================================
+-- SCHEMA: reviews
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- EVALUACIONES / RESEÑAS
 -- ----------------------------------------------------------------------------
-CREATE TABLE reviews (
+CREATE TABLE reviews.reviews (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Relaciones
-    order_id UUID NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
-    reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    order_id UUID NOT NULL UNIQUE REFERENCES orders.orders(id) ON DELETE CASCADE,
+    reviewer_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
     
     -- Tipos de evaluación
     business_rating INTEGER CHECK (business_rating >= 1 AND business_rating <= 5),
@@ -621,18 +665,18 @@ CREATE TABLE reviews (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_reviews_order_id ON reviews(order_id);
-CREATE INDEX idx_reviews_reviewer_id ON reviews(reviewer_id);
-CREATE INDEX idx_reviews_business_rating ON reviews(business_rating);
-CREATE INDEX idx_reviews_repartidor_rating ON reviews(repartidor_rating);
+CREATE INDEX idx_reviews_order_id ON reviews.reviews(order_id);
+CREATE INDEX idx_reviews_reviewer_id ON reviews.reviews(reviewer_id);
+CREATE INDEX idx_reviews_business_rating ON reviews.reviews(business_rating);
+CREATE INDEX idx_reviews_repartidor_rating ON reviews.reviews(repartidor_rating);
 
 -- ----------------------------------------------------------------------------
 -- PROPINAS
 -- ----------------------------------------------------------------------------
-CREATE TABLE tips (
+CREATE TABLE reviews.tips (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    repartidor_id UUID NOT NULL REFERENCES repartidores(id) ON DELETE RESTRICT,
+    order_id UUID NOT NULL REFERENCES orders.orders(id) ON DELETE CASCADE,
+    repartidor_id UUID NOT NULL REFERENCES core.repartidores(id) ON DELETE RESTRICT,
     client_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     
     -- Monto
@@ -645,16 +689,20 @@ CREATE TABLE tips (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_tips_order_id ON tips(order_id);
-CREATE INDEX idx_tips_repartidor_id ON tips(repartidor_id);
-CREATE INDEX idx_tips_client_id ON tips(client_id);
+CREATE INDEX idx_tips_order_id ON reviews.tips(order_id);
+CREATE INDEX idx_tips_repartidor_id ON reviews.tips(repartidor_id);
+CREATE INDEX idx_tips_client_id ON reviews.tips(client_id);
+
+-- ============================================================================
+-- SCHEMA: communication
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- NOTIFICACIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE notifications (
+CREATE TABLE communication.notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Tipo y contenido
     type notification_type NOT NULL,
@@ -670,23 +718,23 @@ CREATE TABLE notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_is_read ON notifications(user_id, is_read);
-CREATE INDEX idx_notifications_created_at ON notifications(user_id, created_at DESC);
-CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX idx_notifications_user_id ON communication.notifications(user_id);
+CREATE INDEX idx_notifications_is_read ON communication.notifications(user_id, is_read);
+CREATE INDEX idx_notifications_created_at ON communication.notifications(user_id, created_at DESC);
+CREATE INDEX idx_notifications_type ON communication.notifications(type);
 
 -- ----------------------------------------------------------------------------
 -- MENSAJES / CHAT
 -- ----------------------------------------------------------------------------
-CREATE TABLE messages (
+CREATE TABLE communication.messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     
     -- Relaciones (chat entre usuarios)
-    sender_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    sender_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
+    recipient_id UUID NOT NULL REFERENCES core.users(id) ON DELETE RESTRICT,
     
     -- Contexto (opcional, puede ser relacionado a un pedido)
-    order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+    order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
     
     -- Contenido
     content TEXT NOT NULL,
@@ -701,17 +749,21 @@ CREATE TABLE messages (
     read_at TIMESTAMP
 );
 
-CREATE INDEX idx_messages_sender_id ON messages(sender_id);
-CREATE INDEX idx_messages_recipient_id ON messages(recipient_id);
-CREATE INDEX idx_messages_order_id ON messages(order_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX idx_messages_sender_id ON communication.messages(sender_id);
+CREATE INDEX idx_messages_recipient_id ON communication.messages(recipient_id);
+CREATE INDEX idx_messages_order_id ON communication.messages(order_id);
+CREATE INDEX idx_messages_created_at ON communication.messages(created_at DESC);
+
+-- ============================================================================
+-- SCHEMA: commerce
+-- ============================================================================
 
 -- ----------------------------------------------------------------------------
 -- PROMOCIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE promotions (
+CREATE TABLE commerce.promotions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id UUID REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Información
     name VARCHAR(255) NOT NULL,
@@ -744,19 +796,19 @@ CREATE TABLE promotions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_promotions_business_id ON promotions(business_id);
-CREATE INDEX idx_promotions_status ON promotions(status);
-CREATE INDEX idx_promotions_dates ON promotions(start_date, end_date);
-CREATE INDEX idx_promotions_promo_code ON promotions(promo_code);
+CREATE INDEX idx_promotions_business_id ON commerce.promotions(business_id);
+CREATE INDEX idx_promotions_status ON commerce.promotions(status);
+CREATE INDEX idx_promotions_dates ON commerce.promotions(start_date, end_date);
+CREATE INDEX idx_promotions_promo_code ON commerce.promotions(promo_code);
 
 -- ----------------------------------------------------------------------------
 -- USO DE PROMOCIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE promotion_uses (
+CREATE TABLE commerce.promotion_uses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    promotion_id UUID NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+    promotion_id UUID NOT NULL REFERENCES commerce.promotions(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+    order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
     
     -- Monto aplicado
     discount_applied DECIMAL(10,2) NOT NULL,
@@ -765,16 +817,16 @@ CREATE TABLE promotion_uses (
     used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_promotion_uses_promotion_id ON promotion_uses(promotion_id);
-CREATE INDEX idx_promotion_uses_user_id ON promotion_uses(user_id);
-CREATE INDEX idx_promotion_uses_order_id ON promotion_uses(order_id);
+CREATE INDEX idx_promotion_uses_promotion_id ON commerce.promotion_uses(promotion_id);
+CREATE INDEX idx_promotion_uses_user_id ON commerce.promotion_uses(user_id);
+CREATE INDEX idx_promotion_uses_order_id ON commerce.promotion_uses(order_id);
 
 -- ----------------------------------------------------------------------------
 -- SUSCRIPCIONES PREMIUM
 -- ----------------------------------------------------------------------------
-CREATE TABLE subscriptions (
+CREATE TABLE commerce.subscriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Tipo de suscripción
     subscription_type VARCHAR(50) NOT NULL, -- 'client_premium', 'local_premium', 'repartidor_premium'
@@ -798,16 +850,16 @@ CREATE TABLE subscriptions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX idx_subscriptions_type ON subscriptions(subscription_type);
+CREATE INDEX idx_subscriptions_user_id ON commerce.subscriptions(user_id);
+CREATE INDEX idx_subscriptions_status ON commerce.subscriptions(status);
+CREATE INDEX idx_subscriptions_type ON commerce.subscriptions(subscription_type);
 
 -- ----------------------------------------------------------------------------
 -- PUBLICIDAD / ADS INTERNOS
 -- ----------------------------------------------------------------------------
-CREATE TABLE ads (
+CREATE TABLE commerce.ads (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id UUID NOT NULL REFERENCES core.businesses(id) ON DELETE CASCADE,
     
     -- Tipo de anuncio
     ad_type VARCHAR(50) NOT NULL, -- 'banner', 'featured', 'positioning'
@@ -831,23 +883,27 @@ CREATE TABLE ads (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ads_business_id ON ads(business_id);
-CREATE INDEX idx_ads_is_active ON ads(is_active);
-CREATE INDEX idx_ads_dates ON ads(start_date, end_date);
+CREATE INDEX idx_ads_business_id ON commerce.ads(business_id);
+CREATE INDEX idx_ads_is_active ON commerce.ads(is_active);
+CREATE INDEX idx_ads_dates ON commerce.ads(start_date, end_date);
 
 -- ============================================================================
 -- RED SOCIAL ECOLÓGICA
 -- ============================================================================
 
+-- ============================================================================
+-- SCHEMA: social
+-- ============================================================================
+
 -- ----------------------------------------------------------------------------
 -- PUBLICACIONES SOCIALES
 -- ----------------------------------------------------------------------------
-CREATE TABLE social_posts (
+CREATE TABLE social.social_posts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Contexto (opcional, relacionado a un pedido)
-    order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+    order_id UUID REFERENCES orders.orders(id) ON DELETE SET NULL,
     
     -- Contenido
     content TEXT,
@@ -873,19 +929,19 @@ CREATE TABLE social_posts (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_social_posts_user_id ON social_posts(user_id);
-CREATE INDEX idx_social_posts_order_id ON social_posts(order_id);
-CREATE INDEX idx_social_posts_created_at ON social_posts(created_at DESC);
-CREATE INDEX idx_social_posts_tags ON social_posts USING GIN(tags);
-CREATE INDEX idx_social_posts_is_visible ON social_posts(is_visible) WHERE is_visible = TRUE;
+CREATE INDEX idx_social_posts_user_id ON social.social_posts(user_id);
+CREATE INDEX idx_social_posts_order_id ON social.social_posts(order_id);
+CREATE INDEX idx_social_posts_created_at ON social.social_posts(created_at DESC);
+CREATE INDEX idx_social_posts_tags ON social.social_posts USING GIN(tags);
+CREATE INDEX idx_social_posts_is_visible ON social.social_posts(is_visible) WHERE is_visible = TRUE;
 
 -- ----------------------------------------------------------------------------
 -- LIKES EN PUBLICACIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE social_likes (
+CREATE TABLE social.social_likes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    post_id UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -893,17 +949,17 @@ CREATE TABLE social_likes (
     UNIQUE(post_id, user_id) -- Un usuario solo puede dar like una vez
 );
 
-CREATE INDEX idx_social_likes_post_id ON social_likes(post_id);
-CREATE INDEX idx_social_likes_user_id ON social_likes(user_id);
+CREATE INDEX idx_social_likes_post_id ON social.social_likes(post_id);
+CREATE INDEX idx_social_likes_user_id ON social.social_likes(user_id);
 
 -- ----------------------------------------------------------------------------
 -- COMENTARIOS EN PUBLICACIONES
 -- ----------------------------------------------------------------------------
-CREATE TABLE social_comments (
+CREATE TABLE social.social_comments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    post_id UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    parent_comment_id UUID REFERENCES social_comments(id) ON DELETE CASCADE, -- Para respuestas
+    post_id UUID NOT NULL REFERENCES social.social_posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    parent_comment_id UUID REFERENCES social.social_comments(id) ON DELETE CASCADE, -- Para respuestas
     
     -- Contenido
     content TEXT NOT NULL,
@@ -916,17 +972,17 @@ CREATE TABLE social_comments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_social_comments_post_id ON social_comments(post_id);
-CREATE INDEX idx_social_comments_user_id ON social_comments(user_id);
-CREATE INDEX idx_social_comments_parent_comment_id ON social_comments(parent_comment_id);
+CREATE INDEX idx_social_comments_post_id ON social.social_comments(post_id);
+CREATE INDEX idx_social_comments_user_id ON social.social_comments(user_id);
+CREATE INDEX idx_social_comments_parent_comment_id ON social.social_comments(parent_comment_id);
 
 -- ----------------------------------------------------------------------------
 -- SEGUIDORES (FOLLOWERS)
 -- ----------------------------------------------------------------------------
-CREATE TABLE social_follows (
+CREATE TABLE social.social_follows (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    following_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    follower_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    following_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -935,15 +991,15 @@ CREATE TABLE social_follows (
     CHECK (follower_id != following_id) -- No se puede seguir a sí mismo
 );
 
-CREATE INDEX idx_social_follows_follower_id ON social_follows(follower_id);
-CREATE INDEX idx_social_follows_following_id ON social_follows(following_id);
+CREATE INDEX idx_social_follows_follower_id ON social.social_follows(follower_id);
+CREATE INDEX idx_social_follows_following_id ON social.social_follows(following_id);
 
 -- ----------------------------------------------------------------------------
 -- PERFIL ECOLÓGICO DEL USUARIO
 -- ----------------------------------------------------------------------------
-CREATE TABLE user_eco_profile (
+CREATE TABLE social.user_eco_profile (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL UNIQUE REFERENCES core.users(id) ON DELETE CASCADE,
     
     -- Métricas acumuladas
     total_co2_saved_kg DECIMAL(10,3) DEFAULT 0.000,
@@ -968,9 +1024,9 @@ CREATE TABLE user_eco_profile (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_user_eco_profile_user_id ON user_eco_profile(user_id);
-CREATE INDEX idx_user_eco_profile_current_level ON user_eco_profile(current_level);
-CREATE INDEX idx_user_eco_profile_total_co2 ON user_eco_profile(total_co2_saved_kg DESC);
+CREATE INDEX idx_user_eco_profile_user_id ON social.user_eco_profile(user_id);
+CREATE INDEX idx_user_eco_profile_current_level ON social.user_eco_profile(current_level);
+CREATE INDEX idx_user_eco_profile_total_co2 ON social.user_eco_profile(total_co2_saved_kg DESC);
 
 -- ============================================================================
 -- TRIGGERS Y FUNCIONES
@@ -986,85 +1042,85 @@ END;
 $$ language 'plpgsql';
 
 -- Aplicar trigger a tablas con updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON core.users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_businesses_updated_at BEFORE UPDATE ON businesses
+CREATE TRIGGER update_businesses_updated_at BEFORE UPDATE ON core.businesses
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_product_categories_updated_at BEFORE UPDATE ON product_categories
+CREATE TRIGGER update_product_categories_updated_at BEFORE UPDATE ON catalog.product_categories
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON catalog.products
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_collections_updated_at BEFORE UPDATE ON collections
+CREATE TRIGGER update_collections_updated_at BEFORE UPDATE ON catalog.collections
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders.orders
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_repartidores_updated_at BEFORE UPDATE ON repartidores
+CREATE TRIGGER update_repartidores_updated_at BEFORE UPDATE ON core.repartidores
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_deliveries_updated_at BEFORE UPDATE ON deliveries
+CREATE TRIGGER update_deliveries_updated_at BEFORE UPDATE ON orders.deliveries
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
+CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews.reviews
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_promotions_updated_at BEFORE UPDATE ON promotions
+CREATE TRIGGER update_promotions_updated_at BEFORE UPDATE ON commerce.promotions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
+CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON commerce.subscriptions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_ads_updated_at BEFORE UPDATE ON ads
+CREATE TRIGGER update_ads_updated_at BEFORE UPDATE ON commerce.ads
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_social_posts_updated_at BEFORE UPDATE ON social_posts
+CREATE TRIGGER update_social_posts_updated_at BEFORE UPDATE ON social.social_posts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_social_comments_updated_at BEFORE UPDATE ON social_comments
+CREATE TRIGGER update_social_comments_updated_at BEFORE UPDATE ON social.social_comments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_eco_profile_updated_at BEFORE UPDATE ON user_eco_profile
+CREATE TRIGGER update_user_eco_profile_updated_at BEFORE UPDATE ON social.user_eco_profile
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Función para actualizar rating promedio de negocios
 CREATE OR REPLACE FUNCTION update_business_rating()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE businesses
+    UPDATE core.businesses
     SET 
         rating_average = (
             SELECT AVG(business_rating)::DECIMAL(3,2)
-            FROM reviews
+            FROM reviews.reviews
             WHERE order_id IN (
-                SELECT id FROM orders WHERE business_id = (
-                    SELECT business_id FROM orders WHERE id = NEW.order_id
+                SELECT id FROM orders.orders WHERE business_id = (
+                    SELECT business_id FROM orders.orders WHERE id = NEW.order_id
                 )
             )
             AND business_rating IS NOT NULL
         ),
         total_reviews = (
             SELECT COUNT(*)
-            FROM reviews
+            FROM reviews.reviews
             WHERE order_id IN (
-                SELECT id FROM orders WHERE business_id = (
-                    SELECT business_id FROM orders WHERE id = NEW.order_id
+                SELECT id FROM orders.orders WHERE business_id = (
+                    SELECT business_id FROM orders.orders WHERE id = NEW.order_id
                 )
             )
             AND business_rating IS NOT NULL
             )
-    WHERE id = (SELECT business_id FROM orders WHERE id = NEW.order_id);
+    WHERE id = (SELECT business_id FROM orders.orders WHERE id = NEW.order_id);
     
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_business_rating_trigger
-    AFTER INSERT OR UPDATE ON reviews
+    AFTER INSERT OR UPDATE ON reviews.reviews
     FOR EACH ROW
     WHEN (NEW.business_rating IS NOT NULL)
     EXECUTE FUNCTION update_business_rating();
@@ -1073,15 +1129,15 @@ CREATE TRIGGER update_business_rating_trigger
 CREATE OR REPLACE FUNCTION update_repartidor_rating()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE repartidores
+    UPDATE core.repartidores
     SET 
         rating_average = (
             SELECT AVG(repartidor_rating)::DECIMAL(3,2)
-            FROM reviews
+            FROM reviews.reviews
             WHERE order_id IN (
-                SELECT id FROM orders WHERE id IN (
-                    SELECT order_id FROM deliveries WHERE repartidor_id = (
-                        SELECT repartidor_id FROM deliveries WHERE order_id = NEW.order_id
+                SELECT id FROM orders.orders WHERE id IN (
+                    SELECT order_id FROM orders.deliveries WHERE repartidor_id = (
+                        SELECT repartidor_id FROM orders.deliveries WHERE order_id = NEW.order_id
                     )
                 )
             )
@@ -1089,24 +1145,24 @@ BEGIN
         ),
         total_reviews = (
             SELECT COUNT(*)
-            FROM reviews
+            FROM reviews.reviews
             WHERE order_id IN (
-                SELECT id FROM orders WHERE id IN (
-                    SELECT order_id FROM deliveries WHERE repartidor_id = (
-                        SELECT repartidor_id FROM deliveries WHERE order_id = NEW.order_id
+                SELECT id FROM orders.orders WHERE id IN (
+                    SELECT order_id FROM orders.deliveries WHERE repartidor_id = (
+                        SELECT repartidor_id FROM orders.deliveries WHERE order_id = NEW.order_id
                     )
                 )
             )
             AND repartidor_rating IS NOT NULL
         )
-    WHERE id = (SELECT repartidor_id FROM deliveries WHERE order_id = NEW.order_id);
+    WHERE id = (SELECT repartidor_id FROM orders.deliveries WHERE order_id = NEW.order_id);
     
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_repartidor_rating_trigger
-    AFTER INSERT OR UPDATE ON reviews
+    AFTER INSERT OR UPDATE ON reviews.reviews
     FOR EACH ROW
     WHEN (NEW.repartidor_rating IS NOT NULL)
     EXECUTE FUNCTION update_repartidor_rating();
@@ -1117,21 +1173,21 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
         IF TG_TABLE_NAME = 'social_likes' THEN
-            UPDATE social_posts
+            UPDATE social.social_posts
             SET likes_count = likes_count + 1
             WHERE id = NEW.post_id;
         ELSIF TG_TABLE_NAME = 'social_comments' THEN
-            UPDATE social_posts
+            UPDATE social.social_posts
             SET comments_count = comments_count + 1
             WHERE id = NEW.post_id;
         END IF;
     ELSIF TG_OP = 'DELETE' THEN
         IF TG_TABLE_NAME = 'social_likes' THEN
-            UPDATE social_posts
+            UPDATE social.social_posts
             SET likes_count = GREATEST(0, likes_count - 1)
             WHERE id = OLD.post_id;
         ELSIF TG_TABLE_NAME = 'social_comments' THEN
-            UPDATE social_posts
+            UPDATE social.social_posts
             SET comments_count = GREATEST(0, comments_count - 1)
             WHERE id = OLD.post_id;
         END IF;
@@ -1142,12 +1198,12 @@ END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_social_post_likes_count
-    AFTER INSERT OR DELETE ON social_likes
+    AFTER INSERT OR DELETE ON social.social_likes
     FOR EACH ROW
     EXECUTE FUNCTION update_social_post_counts();
 
 CREATE TRIGGER update_social_post_comments_count
-    AFTER INSERT OR DELETE ON social_comments
+    AFTER INSERT OR DELETE ON social.social_comments
     FOR EACH ROW
     EXECUTE FUNCTION update_social_post_counts();
 
@@ -1155,35 +1211,45 @@ CREATE TRIGGER update_social_post_comments_count
 -- COMENTARIOS Y DOCUMENTACIÓN
 -- ============================================================================
 
-COMMENT ON TABLE users IS 'Usuarios del sistema (clientes, repartidores, locales, admins)';
-COMMENT ON TABLE businesses IS 'Locales/negocios registrados en la plataforma';
-COMMENT ON TABLE product_categories IS 'Categorías de productos (normalizadas, con jerarquía)';
-COMMENT ON TABLE products IS 'Productos del menú de cada local';
-COMMENT ON TABLE collections IS 'Colecciones de productos (combos, menús del día, paquetes)';
-COMMENT ON TABLE collection_products IS 'Relación muchos-a-muchos entre colecciones y productos';
-COMMENT ON TABLE orders IS 'Pedidos realizados por clientes';
-COMMENT ON TABLE order_items IS 'Items individuales dentro de un pedido (productos o colecciones)';
-COMMENT ON TABLE repartidores IS 'Información específica de repartidores';
-COMMENT ON TABLE deliveries IS 'Entregas asignadas a repartidores';
-COMMENT ON TABLE reviews IS 'Evaluaciones y reseñas de clientes';
-COMMENT ON TABLE tips IS 'Propinas dadas a repartidores';
-COMMENT ON TABLE notifications IS 'Notificaciones push del sistema';
-COMMENT ON TABLE messages IS 'Mensajes de chat entre usuarios';
-COMMENT ON TABLE promotions IS 'Promociones y ofertas de locales';
-COMMENT ON TABLE subscriptions IS 'Suscripciones premium de usuarios';
-COMMENT ON TABLE ads IS 'Publicidad interna de locales';
-COMMENT ON TABLE social_posts IS 'Publicaciones en la red social ecológica';
-COMMENT ON TABLE social_likes IS 'Likes en publicaciones sociales';
-COMMENT ON TABLE social_comments IS 'Comentarios en publicaciones sociales';
-COMMENT ON TABLE social_follows IS 'Relaciones de seguimiento entre usuarios';
-COMMENT ON TABLE user_eco_profile IS 'Perfil ecológico y métricas de impacto de usuarios';
+COMMENT ON SCHEMA core IS 'Schema principal: usuarios, negocios, repartidores, direcciones';
+COMMENT ON SCHEMA catalog IS 'Schema de catálogo: productos, categorías, colecciones';
+COMMENT ON SCHEMA orders IS 'Schema de pedidos: órdenes, items, entregas';
+COMMENT ON SCHEMA reviews IS 'Schema de evaluaciones: reseñas, propinas';
+COMMENT ON SCHEMA communication IS 'Schema de comunicación: notificaciones, mensajes';
+COMMENT ON SCHEMA commerce IS 'Schema de comercio: promociones, suscripciones, publicidad';
+COMMENT ON SCHEMA social IS 'Schema de red social ecológica: posts, likes, comentarios, perfiles';
 
-COMMENT ON COLUMN users.wallet_user_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
-COMMENT ON COLUMN businesses.wallet_business_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
-COMMENT ON COLUMN repartidores.wallet_repartidor_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
-COMMENT ON COLUMN orders.wallet_transaction_id IS 'Referencia externa a transacción en el Wallet';
-COMMENT ON COLUMN tips.wallet_transaction_id IS 'Referencia externa a transacción en el Wallet';
-COMMENT ON COLUMN subscriptions.wallet_subscription_id IS 'Referencia externa a suscripción en el Wallet';
+COMMENT ON TABLE core.users IS 'Usuarios del sistema (clientes, repartidores, locales, admins)';
+COMMENT ON TABLE core.businesses IS 'Locales/negocios registrados en la plataforma';
+COMMENT ON TABLE core.repartidores IS 'Información específica de repartidores';
+COMMENT ON TABLE core.addresses IS 'Direcciones de usuarios con geolocalización';
+COMMENT ON TABLE catalog.product_categories IS 'Categorías de productos (normalizadas, con jerarquía)';
+COMMENT ON TABLE catalog.products IS 'Productos del menú de cada local';
+COMMENT ON TABLE catalog.collections IS 'Colecciones de productos (combos, menús del día, paquetes)';
+COMMENT ON TABLE catalog.collection_products IS 'Relación muchos-a-muchos entre colecciones y productos';
+COMMENT ON TABLE orders.orders IS 'Pedidos realizados por clientes';
+COMMENT ON TABLE orders.order_items IS 'Items individuales dentro de un pedido (productos o colecciones)';
+COMMENT ON TABLE orders.deliveries IS 'Entregas asignadas a repartidores';
+COMMENT ON TABLE reviews.reviews IS 'Evaluaciones y reseñas de clientes';
+COMMENT ON TABLE reviews.tips IS 'Propinas dadas a repartidores';
+COMMENT ON TABLE communication.notifications IS 'Notificaciones push del sistema';
+COMMENT ON TABLE communication.messages IS 'Mensajes de chat entre usuarios';
+COMMENT ON TABLE commerce.promotions IS 'Promociones y ofertas de locales';
+COMMENT ON TABLE commerce.promotion_uses IS 'Historial de uso de promociones';
+COMMENT ON TABLE commerce.subscriptions IS 'Suscripciones premium de usuarios';
+COMMENT ON TABLE commerce.ads IS 'Publicidad interna de locales';
+COMMENT ON TABLE social.social_posts IS 'Publicaciones en la red social ecológica';
+COMMENT ON TABLE social.social_likes IS 'Likes en publicaciones sociales';
+COMMENT ON TABLE social.social_comments IS 'Comentarios en publicaciones sociales';
+COMMENT ON TABLE social.social_follows IS 'Relaciones de seguimiento entre usuarios';
+COMMENT ON TABLE social.user_eco_profile IS 'Perfil ecológico y métricas de impacto de usuarios';
+
+COMMENT ON COLUMN core.users.wallet_user_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
+COMMENT ON COLUMN core.businesses.wallet_business_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
+COMMENT ON COLUMN core.repartidores.wallet_repartidor_id IS 'Referencia externa al sistema Wallet (proyecto separado)';
+COMMENT ON COLUMN orders.orders.wallet_transaction_id IS 'Referencia externa a transacción en el Wallet';
+COMMENT ON COLUMN reviews.tips.wallet_transaction_id IS 'Referencia externa a transacción en el Wallet';
+COMMENT ON COLUMN commerce.subscriptions.wallet_subscription_id IS 'Referencia externa a suscripción en el Wallet';
 
 -- ============================================================================
 -- FIN DEL SCHEMA

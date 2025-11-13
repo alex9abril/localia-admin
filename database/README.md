@@ -11,50 +11,64 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 ### Tecnología
 - **SGBD:** PostgreSQL 12+
 - **Extensiones:** `uuid-ossp` (UUIDs), `postgis` (geolocalización)
+- **Organización:** Schemas por dominio funcional
 
 ### Características Principales
 
 ✅ **Normalización:** Base de datos completamente normalizada (3NF)  
+✅ **Organización por Schemas:** Tablas agrupadas en 7 schemas lógicos  
 ✅ **Integridad Referencial:** Constraints y foreign keys en todas las relaciones  
 ✅ **Índices Optimizados:** Índices estratégicos para consultas frecuentes  
 ✅ **Geolocalización:** Soporte para consultas espaciales con PostGIS  
 ✅ **Triggers Automáticos:** Actualización de timestamps y métricas  
-✅ **Escalabilidad:** Diseño preparado para crecimiento  
+✅ **Escalabilidad:** Diseño preparado para crecimiento
+
+### Schemas (Organización por Dominio)
+
+La base de datos está organizada en **7 schemas** para mejor mantenibilidad:
+
+1. **`core`** - Entidades principales: usuarios, negocios, repartidores, direcciones
+2. **`catalog`** - Catálogo: productos, categorías, colecciones
+3. **`orders`** - Pedidos: órdenes, items, entregas
+4. **`reviews`** - Evaluaciones: reseñas, propinas
+5. **`communication`** - Comunicación: notificaciones, mensajes
+6. **`commerce`** - Comercio: promociones, suscripciones, publicidad
+7. **`social`** - Red social ecológica: posts, likes, comentarios, perfiles  
 
 ## 📋 Tablas Principales
 
-### Usuarios y Autenticación
+### Schema: `core`
 - `users` - Usuarios del sistema (clientes, repartidores, locales, admins)
 - `addresses` - Direcciones de usuarios con geolocalización
-
-### Negocios y Productos
 - `businesses` - Locales/negocios registrados
+- `repartidores` - Información específica de repartidores
+
+### Schema: `catalog`
 - `product_categories` - Categorías de productos (normalizadas, con jerarquía)
 - `products` - Productos del menú de cada local
 - `collections` - Colecciones de productos (combos, menús del día, paquetes)
 - `collection_products` - Relación muchos-a-muchos entre colecciones y productos
 
-### Pedidos y Entregas
+### Schema: `orders`
 - `orders` - Pedidos realizados por clientes
 - `order_items` - Items individuales dentro de un pedido
 - `deliveries` - Entregas asignadas a repartidores
-- `repartidores` - Información específica de repartidores
 
-### Evaluaciones y Propinas
+### Schema: `reviews`
 - `reviews` - Evaluaciones y reseñas
 - `tips` - Propinas dadas a repartidores
 
-### Comunicación
+### Schema: `communication`
 - `notifications` - Notificaciones push del sistema
 - `messages` - Mensajes de chat entre usuarios
 
-### Monetización
+### Schema: `commerce`
 - `promotions` - Promociones y ofertas
 - `promotion_uses` - Historial de uso de promociones
 - `subscriptions` - Suscripciones premium
 - `ads` - Publicidad interna de locales
 
-### Red Social Ecológica
+### Schema: `social`
 - `social_posts` - Publicaciones en la red social ecológica
 - `social_likes` - Likes en publicaciones
 - `social_comments` - Comentarios en publicaciones
@@ -95,55 +109,100 @@ CREATE DATABASE localia_db;
 ### Verificar Instalación
 
 ```sql
--- Ver todas las tablas
-\dt
+-- Ver todos los schemas
+\dn
+
+-- Ver todas las tablas (por schema)
+\dt core.*
+\dt catalog.*
+\dt orders.*
+\dt reviews.*
+\dt communication.*
+\dt commerce.*
+\dt social.*
 
 -- Ver estructura de una tabla
-\d users
+\d core.users
+\d catalog.products
+\d orders.orders
 
 -- Ver índices
 \di
 
 -- Ver triggers
 \dy
+
+-- Ver todas las tablas en todos los schemas
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_schema IN ('core', 'catalog', 'orders', 'reviews', 'communication', 'commerce', 'social')
+ORDER BY table_schema, table_name;
 ```
 
 ## 📊 Diagrama de Relaciones
 
-### Entidades Principales
+### Entidades Principales (por Schema)
 
 ```
-users (1) ──┬── (N) addresses
-            ├── (1) repartidores
-            ├── (N) orders (como client_id)
-            └── (N) social_posts
+SCHEMA: core
+├── users (1) ──┬── (N) addresses
+│               ├── (1) repartidores
+│               ├── (N) orders (como client_id)
+│               └── (N) social_posts
+│
+├── businesses (1) ──┬── (N) product_categories
+│                    ├── (N) products
+│                    ├── (N) collections
+│                    ├── (N) orders
+│                    ├── (N) promotions
+│                    └── (N) ads
+│
+└── repartidores (1) ──┬── (N) deliveries
+                       └── (N) tips
 
-businesses (1) ──┬── (N) product_categories
-                 ├── (N) products
-                 ├── (N) collections
-                 ├── (N) orders
-                 ├── (N) promotions
-                 └── (N) ads
+SCHEMA: catalog
+├── product_categories (1) ──┬── (N) products
+│                             └── (1) parent_category (auto-referencia)
+│
+├── products (1) ──┬── (N) collection_products
+│                  └── (N) order_items
+│
+└── collections (1) ──┬── (N) collection_products
+                       └── (N) order_items
 
-product_categories (1) ──┬── (N) products
-                         └── (1) parent_category (auto-referencia)
+SCHEMA: orders
+├── orders (1) ──┬── (N) order_items (productos o colecciones)
+│                ├── (1) deliveries
+│                ├── (1) reviews
+│                └── (1) tips
+│
+└── deliveries (1) ── (N) repartidores
 
-collections (1) ──┬── (N) collection_products
-                  └── (N) order_items
+SCHEMA: reviews
+├── reviews (1) ── (1) orders
+└── tips (1) ──┬── (1) orders
+               └── (1) repartidores
 
-products (1) ──┬── (N) collection_products
-               └── (N) order_items
+SCHEMA: communication
+├── notifications (1) ── (N) users
+└── messages (1) ──┬── (1) sender (users)
+                   └── (1) recipient (users)
 
-orders (1) ──┬── (N) order_items (productos o colecciones)
-             ├── (1) deliveries
-             ├── (1) reviews
-             └── (1) tips
+SCHEMA: commerce
+├── promotions (1) ──┬── (N) promotion_uses
+│                    └── (N) businesses
+├── subscriptions (1) ── (N) users
+└── ads (1) ── (N) businesses
 
-repartidores (1) ──┬── (N) deliveries
-                   └── (N) tips
-
-social_posts (1) ──┬── (N) social_likes
-                   └── (N) social_comments
+SCHEMA: social
+├── social_posts (1) ──┬── (N) social_likes
+│                      ├── (N) social_comments
+│                      └── (1) users
+│
+├── social_follows (1) ──┬── (1) follower (users)
+│                        └── (1) following (users)
+│
+└── user_eco_profile (1) ── (1) users
 ```
 
 ## 📦 Sistema de Categorías y Colecciones
@@ -213,7 +272,7 @@ VALUES
 ### Usuarios Activos por Rol
 ```sql
 SELECT role, COUNT(*) as total
-FROM users
+FROM core.users
 WHERE is_active = TRUE
 GROUP BY role;
 ```
@@ -221,7 +280,7 @@ GROUP BY role;
 ### Pedidos por Estado
 ```sql
 SELECT status, COUNT(*) as total
-FROM orders
+FROM orders.orders
 GROUP BY status
 ORDER BY total DESC;
 ```
@@ -229,7 +288,7 @@ ORDER BY total DESC;
 ### Top Locales por Calificación
 ```sql
 SELECT name, rating_average, total_reviews
-FROM businesses
+FROM core.businesses
 WHERE is_active = TRUE
 ORDER BY rating_average DESC
 LIMIT 10;
@@ -238,8 +297,8 @@ LIMIT 10;
 ### Productos por Categoría
 ```sql
 SELECT pc.name as categoria, COUNT(p.id) as total_productos
-FROM product_categories pc
-LEFT JOIN products p ON p.category_id = pc.id
+FROM catalog.product_categories pc
+LEFT JOIN catalog.products p ON p.category_id = pc.id
 WHERE pc.business_id = 'uuid-del-negocio'
 GROUP BY pc.id, pc.name
 ORDER BY total_productos DESC;
@@ -249,8 +308,8 @@ ORDER BY total_productos DESC;
 ```sql
 SELECT c.name, c.type, c.price, c.original_price,
        COUNT(cp.product_id) as productos_incluidos
-FROM collections c
-LEFT JOIN collection_products cp ON cp.collection_id = c.id
+FROM catalog.collections c
+LEFT JOIN catalog.collection_products cp ON cp.collection_id = c.id
 WHERE c.business_id = 'uuid-del-negocio'
   AND c.is_available = TRUE
   AND (c.valid_until IS NULL OR c.valid_until >= CURRENT_DATE)
@@ -261,9 +320,9 @@ ORDER BY c.display_order;
 ### Productos de una Colección
 ```sql
 SELECT p.name, p.price, cp.quantity, cp.price_override
-FROM collections c
-JOIN collection_products cp ON cp.collection_id = c.id
-JOIN products p ON p.id = cp.product_id
+FROM catalog.collections c
+JOIN catalog.collection_products cp ON cp.collection_id = c.id
+JOIN catalog.products p ON p.id = cp.product_id
 WHERE c.id = 'uuid-de-la-coleccion'
 ORDER BY cp.display_order;
 ```
@@ -271,8 +330,8 @@ ORDER BY cp.display_order;
 ### Repartidores Disponibles en Radio
 ```sql
 SELECT r.id, u.first_name, u.last_name, r.current_location
-FROM repartidores r
-JOIN users u ON r.user_id = u.id
+FROM core.repartidores r
+JOIN core.users u ON r.user_id = u.id
 WHERE r.is_available = TRUE
   AND ST_DWithin(
     r.current_location::geography,
@@ -284,11 +343,25 @@ WHERE r.is_available = TRUE
 ### Publicaciones Ecológicas Más Populares
 ```sql
 SELECT sp.id, u.first_name, sp.co2_saved_kg, sp.likes_count
-FROM social_posts sp
-JOIN users u ON sp.user_id = u.id
+FROM social.social_posts sp
+JOIN core.users u ON sp.user_id = u.id
 WHERE sp.is_visible = TRUE
 ORDER BY sp.likes_count DESC
 LIMIT 10;
+```
+
+### Verificar Schemas Creados
+```sql
+-- Listar todos los schemas
+SELECT schema_name 
+FROM information_schema.schemata 
+WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast');
+
+-- Ver tablas por schema
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_schema IN ('core', 'catalog', 'orders', 'reviews', 'communication', 'commerce', 'social')
+ORDER BY table_schema, table_name;
 ```
 
 ## 🔐 Seguridad
