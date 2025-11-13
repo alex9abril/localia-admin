@@ -474,26 +474,40 @@ Para futuras modificaciones del schema, se recomienda:
 
 ## 👥 Crear Usuarios de Prueba
 
-### create_test_users.sql
+### ⚠️ IMPORTANTE: Crear Usuarios en Supabase Dashboard
 
-Script para crear usuarios de prueba en `auth.users` de Supabase. **Ejecuta esto ANTES de ejecutar `seed_delivery_cycle.sql`**:
+**En Supabase, NO puedes crear usuarios directamente en `auth.users` sin permisos de `service_role`.**
 
-```sql
-\i database/create_test_users.sql
-```
+### Método Recomendado (Dashboard + Script Simplificado)
 
-**⚠️ Nota:** Este script puede fallar si no tienes permisos suficientes. En ese caso:
-
-1. **Usa Supabase Dashboard** (Recomendado):
-   - Ve a Authentication > Users > Add User
-   - Crea estos 3 usuarios:
+1. **Crea los usuarios en Supabase Dashboard:**
+   - Ve a **Authentication > Users > Add User**
+   - Crea estos 3 usuarios con estos emails exactos:
      - `cliente@example.com`
      - `repartidor@example.com`
      - `local@example.com`
+   - Puedes usar cualquier password (ej: `password123`)
 
-2. **O usa Supabase Auth API** desde tu aplicación
+2. **Crea los perfiles usando el script simplificado:**
+   ```sql
+   \i database/create_profiles_only.sql
+   ```
 
-3. **Luego verifica** que los usuarios existan antes de ejecutar el seed:
+Este script:
+- ✅ Busca los usuarios por email en `auth.users`
+- ✅ Crea los perfiles en `core.user_profiles` automáticamente
+- ✅ Muestra mensajes claros si falta algún usuario
+
+### Scripts Disponibles
+
+#### `create_profiles_only.sql` (✅ RECOMENDADO)
+Solo crea perfiles. Usa esto después de crear usuarios en el Dashboard.
+
+#### `create_test_users.sql` (⚠️ Puede fallar)
+Intenta crear usuarios y perfiles, pero requiere permisos de `service_role`. Generalmente falla con error de `instance_id`.
+
+### Verificar Usuarios Creados
+
 ```sql
 SELECT id, email FROM auth.users 
 WHERE email IN ('cliente@example.com', 'repartidor@example.com', 'local@example.com');
