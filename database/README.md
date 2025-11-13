@@ -29,7 +29,10 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 
 ### Negocios y Productos
 - `businesses` - Locales/negocios registrados
+- `product_categories` - Categorías de productos (normalizadas, con jerarquía)
 - `products` - Productos del menú de cada local
+- `collections` - Colecciones de productos (combos, menús del día, paquetes)
+- `collection_products` - Relación muchos-a-muchos entre colecciones y productos
 
 ### Pedidos y Entregas
 - `orders` - Pedidos realizados por clientes
@@ -115,12 +118,23 @@ users (1) ──┬── (N) addresses
             ├── (N) orders (como client_id)
             └── (N) social_posts
 
-businesses (1) ──┬── (N) products
+businesses (1) ──┬── (N) product_categories
+                 ├── (N) products
+                 ├── (N) collections
                  ├── (N) orders
                  ├── (N) promotions
                  └── (N) ads
 
-orders (1) ──┬── (N) order_items
+product_categories (1) ──┬── (N) products
+                         └── (1) parent_category (auto-referencia)
+
+collections (1) ──┬── (N) collection_products
+                  └── (N) order_items
+
+products (1) ──┬── (N) collection_products
+               └── (N) order_items
+
+orders (1) ──┬── (N) order_items (productos o colecciones)
              ├── (1) deliveries
              ├── (1) reviews
              └── (1) tips
@@ -130,6 +144,68 @@ repartidores (1) ──┬── (N) deliveries
 
 social_posts (1) ──┬── (N) social_likes
                    └── (N) social_comments
+```
+
+## 📦 Sistema de Categorías y Colecciones
+
+### Categorías de Productos
+
+El sistema de categorías está **normalizado** y soporta:
+
+- ✅ **Categorías globales**: Categorías compartidas por todos los negocios (ej: "Entradas", "Bebidas")
+- ✅ **Categorías por negocio**: Categorías específicas de un local (ej: "Especialidades de la casa")
+- ✅ **Jerarquía**: Categorías padre/hijo para subcategorías (ej: "Bebidas" → "Bebidas frías" → "Jugos")
+- ✅ **Orden personalizado**: Control del orden de visualización
+
+**Ejemplo de uso:**
+```sql
+-- Crear categoría global
+INSERT INTO product_categories (name, description) 
+VALUES ('Bebidas', 'Todas las bebidas disponibles');
+
+-- Crear subcategoría
+INSERT INTO product_categories (name, parent_category_id) 
+VALUES ('Bebidas frías', (SELECT id FROM product_categories WHERE name = 'Bebidas'));
+
+-- Asignar producto a categoría
+UPDATE products SET category_id = (SELECT id FROM product_categories WHERE name = 'Bebidas')
+WHERE id = 'uuid-del-producto';
+```
+
+### Colecciones de Productos
+
+Las colecciones permiten agrupar productos en:
+
+- 🍔 **Combos**: Paquetes fijos con precio especial (ej: "Combo Hamburguesa + Papas + Bebida")
+- 📅 **Menús del día**: Menús especiales con validez por fecha
+- 📦 **Paquetes**: Agrupaciones promocionales
+- 🎁 **Bundles promocionales**: Paquetes con descuento
+
+**Características:**
+- Precio fijo para la colección (puede ser menor que la suma de productos individuales)
+- Múltiples productos con cantidades específicas
+- Precios override por producto (opcional)
+- Validez por fechas (para menús temporales)
+- Orden de visualización personalizado
+
+**Ejemplo de uso:**
+```sql
+-- Crear combo
+INSERT INTO collections (business_id, name, type, price, original_price)
+VALUES (
+    'uuid-del-negocio',
+    'Combo Familiar',
+    'combo',
+    250.00,  -- Precio del combo
+    320.00   -- Precio si se compraran los productos por separado
+);
+
+-- Agregar productos al combo
+INSERT INTO collection_products (collection_id, product_id, quantity)
+VALUES 
+    ('uuid-del-combo', 'uuid-hamburguesa', 2),
+    ('uuid-del-combo', 'uuid-papas', 2),
+    ('uuid-del-combo', 'uuid-bebida', 2);
 ```
 
 ## 🔍 Consultas Útiles
@@ -157,6 +233,39 @@ FROM businesses
 WHERE is_active = TRUE
 ORDER BY rating_average DESC
 LIMIT 10;
+```
+
+### Productos por Categoría
+```sql
+SELECT pc.name as categoria, COUNT(p.id) as total_productos
+FROM product_categories pc
+LEFT JOIN products p ON p.category_id = pc.id
+WHERE pc.business_id = 'uuid-del-negocio'
+GROUP BY pc.id, pc.name
+ORDER BY total_productos DESC;
+```
+
+### Colecciones Disponibles de un Negocio
+```sql
+SELECT c.name, c.type, c.price, c.original_price,
+       COUNT(cp.product_id) as productos_incluidos
+FROM collections c
+LEFT JOIN collection_products cp ON cp.collection_id = c.id
+WHERE c.business_id = 'uuid-del-negocio'
+  AND c.is_available = TRUE
+  AND (c.valid_until IS NULL OR c.valid_until >= CURRENT_DATE)
+GROUP BY c.id, c.name, c.type, c.price, c.original_price
+ORDER BY c.display_order;
+```
+
+### Productos de una Colección
+```sql
+SELECT p.name, p.price, cp.quantity, cp.price_override
+FROM collections c
+JOIN collection_products cp ON cp.collection_id = c.id
+JOIN products p ON p.id = cp.product_id
+WHERE c.id = 'uuid-de-la-coleccion'
+ORDER BY cp.display_order;
 ```
 
 ### Repartidores Disponibles en Radio

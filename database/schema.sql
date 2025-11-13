@@ -264,6 +264,39 @@ CREATE INDEX idx_businesses_tags ON businesses USING GIN(tags);
 CREATE INDEX idx_businesses_rating ON businesses(rating_average DESC);
 
 -- ----------------------------------------------------------------------------
+-- CATEGORÍAS DE PRODUCTOS
+-- ----------------------------------------------------------------------------
+CREATE TABLE product_categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    business_id UUID REFERENCES businesses(id) ON DELETE CASCADE, -- NULL = categoría global
+    
+    -- Información de la categoría
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    icon_url TEXT,
+    
+    -- Jerarquía (categorías padre/hijo)
+    parent_category_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
+    
+    -- Orden de visualización
+    display_order INTEGER DEFAULT 0,
+    
+    -- Estado
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraint: nombre único por negocio (o global si business_id es NULL)
+    UNIQUE(business_id, name)
+);
+
+CREATE INDEX idx_product_categories_business_id ON product_categories(business_id);
+CREATE INDEX idx_product_categories_parent_id ON product_categories(parent_category_id);
+CREATE INDEX idx_product_categories_is_active ON product_categories(is_active);
+
+-- ----------------------------------------------------------------------------
 -- PRODUCTOS / MENÚ
 -- ----------------------------------------------------------------------------
 CREATE TABLE products (
@@ -278,8 +311,8 @@ CREATE TABLE products (
     -- Precio
     price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
     
-    -- Categoría del producto
-    category VARCHAR(100), -- Entrada, Plato principal, Bebida, Postre, etc.
+    -- Categoría del producto (normalizada)
+    category_id UUID REFERENCES product_categories(id) ON DELETE SET NULL,
     
     -- Disponibilidad
     is_available BOOLEAN DEFAULT TRUE,
@@ -301,9 +334,84 @@ CREATE TABLE products (
 );
 
 CREATE INDEX idx_products_business_id ON products(business_id);
+CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_products_is_available ON products(business_id, is_available);
-CREATE INDEX idx_products_category ON products(category);
 CREATE INDEX idx_products_is_featured ON products(business_id, is_featured);
+
+-- ----------------------------------------------------------------------------
+-- COLECCIONES (COMBOS, MENÚS, PAQUETES)
+-- ----------------------------------------------------------------------------
+CREATE TYPE collection_type AS ENUM (
+    'combo',           -- Combo fijo de productos
+    'menu_del_dia',    -- Menú del día
+    'paquete',         -- Paquete promocional
+    'promocion_bundle' -- Bundle promocional
+);
+
+CREATE TABLE collections (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    
+    -- Información de la colección
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    
+    -- Tipo de colección
+    type collection_type NOT NULL DEFAULT 'combo',
+    
+    -- Precio
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    original_price DECIMAL(10,2), -- Precio original (si hay descuento)
+    
+    -- Disponibilidad
+    is_available BOOLEAN DEFAULT TRUE,
+    is_featured BOOLEAN DEFAULT FALSE,
+    
+    -- Fechas (para menús del día, promociones temporales)
+    valid_from DATE,
+    valid_until DATE,
+    
+    -- Orden de visualización
+    display_order INTEGER DEFAULT 0,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_collections_business_id ON collections(business_id);
+CREATE INDEX idx_collections_type ON collections(type);
+CREATE INDEX idx_collections_is_available ON collections(business_id, is_available);
+CREATE INDEX idx_collections_valid_dates ON collections(valid_from, valid_until);
+
+-- ----------------------------------------------------------------------------
+-- PRODUCTOS EN COLECCIONES (Relación muchos-a-muchos)
+-- ----------------------------------------------------------------------------
+CREATE TABLE collection_products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    collection_id UUID NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    
+    -- Cantidad del producto en la colección
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    
+    -- Precio específico en esta colección (opcional, si difiere del precio normal)
+    price_override DECIMAL(10,2),
+    
+    -- Orden de visualización dentro de la colección
+    display_order INTEGER DEFAULT 0,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Un producto puede aparecer múltiples veces en una colección (con diferentes cantidades)
+    -- pero evitamos duplicados exactos
+    UNIQUE(collection_id, product_id, quantity)
+);
+
+CREATE INDEX idx_collection_products_collection_id ON collection_products(collection_id);
+CREATE INDEX idx_collection_products_product_id ON collection_products(product_id);
 
 -- ----------------------------------------------------------------------------
 -- PEDIDOS
@@ -371,15 +479,24 @@ CREATE INDEX idx_orders_payment_status ON orders(payment_status);
 CREATE TABLE order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES products(id) ON DELETE SET NULL,
     
-    -- Información del item
-    product_name VARCHAR(255) NOT NULL, -- Nombre al momento del pedido (snapshot)
-    product_price DECIMAL(10,2) NOT NULL CHECK (product_price >= 0),
+    -- Relación: puede ser un producto individual O una colección
+    product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+    collection_id UUID REFERENCES collections(id) ON DELETE SET NULL,
+    
+    -- Constraint: debe ser producto O colección, no ambos ni ninguno
+    CONSTRAINT order_items_item_check CHECK (
+        (product_id IS NOT NULL AND collection_id IS NULL) OR
+        (product_id IS NULL AND collection_id IS NOT NULL)
+    ),
+    
+    -- Información del item (snapshot al momento del pedido)
+    item_name VARCHAR(255) NOT NULL, -- Nombre del producto o colección
+    item_price DECIMAL(10,2) NOT NULL CHECK (item_price >= 0),
     
     -- Cantidad y variantes
     quantity INTEGER NOT NULL CHECK (quantity > 0),
-    variant_selection JSONB, -- Selección de variantes del producto
+    variant_selection JSONB, -- Selección de variantes del producto (solo para productos)
     
     -- Montos
     item_subtotal DECIMAL(10,2) NOT NULL CHECK (item_subtotal >= 0),
@@ -393,6 +510,7 @@ CREATE TABLE order_items (
 
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+CREATE INDEX idx_order_items_collection_id ON order_items(collection_id);
 
 -- ----------------------------------------------------------------------------
 -- REPARTIDORES
@@ -874,7 +992,13 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_businesses_updated_at BEFORE UPDATE ON businesses
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_product_categories_updated_at BEFORE UPDATE ON product_categories
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_collections_updated_at BEFORE UPDATE ON collections
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
@@ -1033,9 +1157,12 @@ CREATE TRIGGER update_social_post_comments_count
 
 COMMENT ON TABLE users IS 'Usuarios del sistema (clientes, repartidores, locales, admins)';
 COMMENT ON TABLE businesses IS 'Locales/negocios registrados en la plataforma';
+COMMENT ON TABLE product_categories IS 'Categorías de productos (normalizadas, con jerarquía)';
 COMMENT ON TABLE products IS 'Productos del menú de cada local';
+COMMENT ON TABLE collections IS 'Colecciones de productos (combos, menús del día, paquetes)';
+COMMENT ON TABLE collection_products IS 'Relación muchos-a-muchos entre colecciones y productos';
 COMMENT ON TABLE orders IS 'Pedidos realizados por clientes';
-COMMENT ON TABLE order_items IS 'Items individuales dentro de un pedido';
+COMMENT ON TABLE order_items IS 'Items individuales dentro de un pedido (productos o colecciones)';
 COMMENT ON TABLE repartidores IS 'Información específica de repartidores';
 COMMENT ON TABLE deliveries IS 'Entregas asignadas a repartidores';
 COMMENT ON TABLE reviews IS 'Evaluaciones y reseñas de clientes';
