@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseClient, User, AuthResponse } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin } from '../../config/supabase.config';
+import { dbPool } from '../../config/database.config';
 import { SignUpDto } from './dto/signup.dto';
 import { SignInDto } from './dto/signin.dto';
 
@@ -36,44 +37,191 @@ export class AuthService {
    * Verifica si un usuario tiene un rol específico
    */
   async hasRole(userId: string, role: string): Promise<boolean> {
-    if (!supabaseAdmin) {
-      throw new ServiceUnavailableException('Servicio de base de datos no configurado');
-    }
-
-    // Aquí puedes implementar lógica para verificar roles
-    // Por ejemplo, consultar la tabla user_profiles
-    const { data, error } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (error || !data) {
+    if (!dbPool) {
       return false;
     }
 
-    return data.role === role;
+    const result = await dbPool.query(
+      'SELECT role FROM core.user_profiles WHERE id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return false;
+    }
+
+    return result.rows[0].role === role;
   }
 
   /**
    * Obtiene el perfil completo del usuario (incluyendo datos de user_profiles)
    */
   async getUserProfile(userId: string) {
-    if (!supabaseAdmin) {
-      throw new ServiceUnavailableException('Servicio de base de datos no configurado');
+    // Usar conexión directa a PostgreSQL porque la tabla está en el schema 'core'
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    try {
+      console.log('🔍 Buscando perfil para userId:', userId);
+      let result = await dbPool.query(
+        'SELECT * FROM core.user_profiles WHERE id = $1',
+        [userId]
+      );
 
-    if (error || !data) {
-      throw new UnauthorizedException('Perfil de usuario no encontrado');
+      console.log('📊 Resultado de la consulta:', {
+        rowCount: result.rows.length,
+        hasData: result.rows.length > 0,
+      });
+
+      // Si no existe el perfil, intentar obtener información del usuario desde auth.users
+      // y crear el perfil automáticamente
+      if (result.rows.length === 0) {
+        console.warn('⚠️  No se encontró perfil para userId:', userId);
+        console.log('🔄 Intentando crear perfil automáticamente...');
+        
+        // Obtener información del usuario desde Supabase Auth
+        if (!supabaseAdmin) {
+          throw new ServiceUnavailableException('Servicio de autenticación no configurado');
+        }
+
+        const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId);
+        
+        if (authError || !authUser?.user) {
+          console.error('❌ No se pudo obtener usuario de auth.users:', authError?.message);
+          throw new UnauthorizedException('Usuario no encontrado en el sistema de autenticación');
+        }
+
+        const user = authUser.user;
+        console.log('✅ Usuario encontrado en auth.users:', user.email);
+
+        // Crear perfil con información básica
+        // Intentar extraer nombre del user_metadata
+        const firstName = user.user_metadata?.first_name || user.user_metadata?.firstName || null;
+        const lastName = user.user_metadata?.last_name || user.user_metadata?.lastName || null;
+        let phone = user.user_metadata?.phone || user.phone || null;
+        
+        // Validar y limpiar el teléfono si existe
+        if (phone) {
+          // Verificar si el teléfono ya existe en otro perfil
+          const phoneCheck = await dbPool.query(
+            'SELECT id FROM core.user_profiles WHERE phone = $1 AND id != $2',
+            [phone, userId]
+          );
+          if (phoneCheck.rows.length > 0) {
+            console.warn('⚠️  Teléfono ya existe en otro perfil, estableciendo a null');
+            phone = null; // Evitar constraint violation
+          }
+        }
+        
+        // Determinar el rol (por defecto 'client', pero puede estar en metadata)
+        // Validar que el rol sea uno de los permitidos
+        const validRoles = ['client', 'repartidor', 'local', 'admin'];
+        let role = user.user_metadata?.role || 'client';
+        if (!validRoles.includes(role)) {
+          console.warn(`⚠️  Rol inválido '${role}', usando 'client' por defecto`);
+          role = 'client';
+        }
+
+        try {
+          console.log('📝 Intentando insertar perfil con datos:', {
+            userId,
+            role,
+            firstName,
+            lastName,
+            phone,
+          });
+
+          const insertResult = await dbPool.query(
+            `INSERT INTO core.user_profiles (id, role, first_name, last_name, phone, phone_verified, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [
+              userId,
+              role,
+              firstName,
+              lastName,
+              phone,
+              false,
+              true,
+            ]
+          );
+
+          console.log('✅ Perfil creado automáticamente para userId:', userId);
+          return insertResult.rows[0];
+        } catch (insertError: any) {
+          console.error('❌ Error al crear perfil automáticamente:', {
+            message: insertError.message,
+            code: insertError.code,
+            detail: insertError.detail,
+            hint: insertError.hint,
+            constraint: insertError.constraint,
+            table: insertError.table,
+            column: insertError.column,
+            stack: insertError.stack,
+          });
+          
+          // Si es un error de constraint (por ejemplo, foreign key), proporcionar más información
+          if (insertError.code === '23503') {
+            throw new UnauthorizedException(
+              `No se pudo crear el perfil: El usuario no existe en auth.users o hay un problema de referencia. Detalle: ${insertError.detail || insertError.message}`
+            );
+          }
+          
+          // Si es un error de constraint único (duplicado)
+          if (insertError.code === '23505') {
+            // El perfil ya existe, intentar obtenerlo nuevamente
+            console.log('⚠️  Perfil ya existe (posible race condition), obteniendo nuevamente...');
+            const retryResult = await dbPool.query(
+              'SELECT * FROM core.user_profiles WHERE id = $1',
+              [userId]
+            );
+            if (retryResult.rows.length > 0) {
+              console.log('✅ Perfil encontrado después de retry');
+              return retryResult.rows[0];
+            }
+          }
+          
+          // Si falla la inserción, lanzar el error con más detalles
+          throw new UnauthorizedException(
+            `Perfil de usuario no encontrado y no se pudo crear automáticamente: ${insertError.message || insertError.detail || 'Error desconocido'}`
+          );
+        }
+      }
+
+      return result.rows[0];
+    } catch (error: any) {
+      console.error('❌ Error en getUserProfile:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        hint: error.hint,
+        stack: error.stack,
+      });
+      
+      // Si es un error de conexión o de base de datos, lanzar ServiceUnavailableException
+      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code?.startsWith('28')) {
+        throw new ServiceUnavailableException(`Error de conexión a la base de datos: ${error.message}`);
+      }
+      
+      // Si es un error de autenticación de PostgreSQL
+      if (error.code === '28P01') {
+        throw new ServiceUnavailableException('Error de autenticación con la base de datos. Verifica DATABASE_URL');
+      }
+      
+      // Si es un error de schema o tabla no encontrada
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        throw new ServiceUnavailableException(`Tabla o schema no encontrado: ${error.message}`);
+      }
+      
+      // Si es UnauthorizedException, re-lanzarlo tal cual
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      // Para otros errores, re-lanzar como BadRequestException con más detalles
+      throw new BadRequestException(`Error al obtener perfil: ${error.message}`);
     }
-
-    return data;
   }
 
   /**
@@ -124,32 +272,31 @@ export class AuthService {
 
     console.log('✅ Usuario creado en Supabase Auth:', authData.user.id);
 
-    // Crear perfil en core.user_profiles
-    if (supabaseAdmin) {
+    // Crear perfil en core.user_profiles usando conexión directa
+    if (dbPool) {
       console.log('✅ Creando perfil en core.user_profiles...');
-      const { error: profileError } = await supabaseAdmin
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          role: signUpDto.role || 'client',
-          first_name: signUpDto.firstName,
-          last_name: signUpDto.lastName,
-          phone: signUpDto.phone,
-          phone_verified: false,
-          is_active: true,
-        });
-
-      if (profileError) {
-        // Si falla crear el perfil, intentar eliminar el usuario de auth
-        // (opcional, depende de tu estrategia)
-        console.error('❌ Error creando perfil de usuario:', profileError);
-        console.error('  Detalles:', JSON.stringify(profileError, null, 2));
-        // No lanzamos error aquí para no bloquear el registro
-      } else {
+      try {
+        await dbPool.query(
+          `INSERT INTO core.user_profiles (id, role, first_name, last_name, phone, phone_verified, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            authData.user.id,
+            signUpDto.role || 'client',
+            signUpDto.firstName,
+            signUpDto.lastName,
+            signUpDto.phone,
+            false,
+            true,
+          ]
+        );
         console.log('✅ Perfil creado exitosamente en core.user_profiles');
+      } catch (profileError: any) {
+        console.error('❌ Error creando perfil de usuario:', profileError);
+        console.error('  Detalles:', profileError.message);
+        // No lanzamos error aquí para no bloquear el registro
       }
     } else {
-      console.warn('⚠️  supabaseAdmin no está disponible, no se creará perfil en core.user_profiles');
+      console.warn('⚠️  dbPool no está disponible, no se creará perfil en core.user_profiles');
     }
 
     return {
@@ -186,16 +333,18 @@ export class AuthService {
       throw new UnauthorizedException('No se pudo iniciar sesión');
     }
 
-    // Obtener perfil del usuario
+    // Obtener perfil del usuario usando conexión directa
     let profile = null;
-    if (supabaseAdmin) {
-      const { data: profileData } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      profile = profileData;
+    if (dbPool) {
+      try {
+        const profileResult = await dbPool.query(
+          'SELECT * FROM core.user_profiles WHERE id = $1',
+          [data.user.id]
+        );
+        profile = profileResult.rows[0] || null;
+      } catch (e) {
+        console.error('Error obteniendo perfil en signIn:', e);
+      }
     }
 
     return {

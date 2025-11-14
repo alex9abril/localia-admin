@@ -1,22 +1,25 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { useAuth } from '@/contexts/AuthContext';
 
-const Home: NextPage = () => {
+export default function Home() {
+  const router = useRouter();
+  const { isAuthenticated, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      if (isAuthenticated) {
+        router.push('/dashboard');
+      } else {
+        router.push('/auth/login');
+      }
+    }
+  }, [isAuthenticated, loading, router]);
+
   return (
-    <div>
-      <Head>
-        <title>LOCALIA - Panel Admin</title>
-        <meta name="description" content="Panel de administración LOCALIA" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <main>
-        <h1>LOCALIA - Panel Admin</h1>
-        <p>Panel de administración y control</p>
-      </main>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
     </div>
-  )
+  );
 }
-
-export default Home
 

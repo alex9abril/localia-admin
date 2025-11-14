@@ -48,6 +48,9 @@ export const supabaseAdmin: SupabaseClient | null = supabaseUrl && supabaseServi
           autoRefreshToken: false,
           persistSession: false,
         },
+        // Nota: Supabase PostgREST por defecto solo expone el schema 'public'
+        // Si las tablas están en 'core', necesitamos usar el formato 'core.table' o
+        // configurar PostgREST para exponer el schema 'core'
       }
     )
   : null;

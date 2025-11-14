@@ -8,16 +8,19 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ApiKeysService } from './modules/api-keys/api-keys.service';
+import { BusinessesModule } from './modules/businesses/businesses.module';
+import { RepartidoresModule } from './modules/repartidores/repartidores.module';
 
 @Module({
   imports: [
     AuthModule,
     HealthModule,
     ApiKeysModule,
+    BusinessesModule,
+    RepartidoresModule,
     // Otros módulos se agregarán aquí
     // OrdersModule,
     // UsersModule,
-    // BusinessesModule,
     // etc.
   ],
   controllers: [],
