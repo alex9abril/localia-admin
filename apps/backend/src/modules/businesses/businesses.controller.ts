@@ -1,11 +1,15 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Query,
   Body,
   UseGuards,
+  NotFoundException,
+  BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,10 +21,12 @@ import {
 } from '@nestjs/swagger';
 import { SupabaseAuthGuard } from '../../common/guards/supabase-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { User } from '@supabase/supabase-js';
 import { BusinessesService } from './businesses.service';
 import { ListBusinessesDto } from './dto/list-businesses.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
+import { CreateBusinessDto } from './dto/create-business.dto';
 
 @ApiTags('businesses')
 @Controller('businesses')
@@ -44,6 +50,85 @@ export class BusinessesController {
   @ApiResponse({ status: 200, description: 'Resultado de la prueba' })
   async testConnection(@CurrentUser() user: User) {
     return this.businessesService.testConnection();
+  }
+
+  @Get('my-business')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Obtener el negocio del usuario actual' })
+  @ApiResponse({ status: 200, description: 'Negocio obtenido exitosamente' })
+  @ApiResponse({ status: 404, description: 'El usuario no tiene un negocio registrado' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async getMyBusiness(@CurrentUser() user: User) {
+    const business = await this.businessesService.findByOwnerId(user.id);
+    if (!business) {
+      throw new NotFoundException('No tienes un negocio registrado');
+    }
+    return business;
+  }
+
+  @Post()
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Crear un nuevo negocio' })
+  @ApiResponse({ status: 201, description: 'Negocio creado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o el usuario ya tiene un negocio' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async create(@Body() createDto: CreateBusinessDto, @CurrentUser() user: User) {
+    return this.businessesService.create(user.id, createDto);
+  }
+
+  @Get('categories')
+  @Public()
+  @ApiOperation({ summary: 'Obtener catálogo de categorías de negocios (público)' })
+  @ApiResponse({ status: 200, description: 'Categorías obtenidas exitosamente' })
+  async getCategories() {
+    return this.businessesService.getBusinessCategories();
+  }
+
+  @Get('active-region')
+  @Public()
+  @ApiOperation({ summary: 'Obtener la región activa de servicio (público)' })
+  @ApiResponse({ status: 200, description: 'Región activa obtenida exitosamente' })
+  @ApiResponse({ status: 404, description: 'No hay región activa configurada' })
+  async getActiveRegion() {
+    try {
+      const region = await this.businessesService.getActiveRegion();
+      if (!region) {
+        throw new NotFoundException({
+          message: 'No hay región de servicio activa configurada',
+          hint: 'Ejecuta el script database/service_regions.sql para configurar las regiones de cobertura',
+        });
+      }
+      return region;
+    } catch (error: any) {
+      // Si es un NotFoundException, re-lanzarlo
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      // Para otros errores, lanzar con más contexto
+      throw new ServiceUnavailableException(
+        `Error al obtener región activa: ${error.message}. Verifica que el script database/service_regions.sql se haya ejecutado.`
+      );
+    }
+  }
+
+  @Get('validate-location')
+  @Public()
+  @ApiOperation({ summary: 'Validar si una ubicación está dentro de la región activa (público)' })
+  @ApiQuery({ name: 'longitude', type: Number, description: 'Longitud' })
+  @ApiQuery({ name: 'latitude', type: Number, description: 'Latitud' })
+  @ApiResponse({ status: 200, description: 'Validación realizada exitosamente' })
+  async validateLocation(
+    @Query('longitude') longitude: string,
+    @Query('latitude') latitude: string,
+  ) {
+    const lon = parseFloat(longitude);
+    const lat = parseFloat(latitude);
+
+    if (isNaN(lon) || isNaN(lat)) {
+      throw new BadRequestException('Longitud y latitud deben ser números válidos');
+    }
+
+    return this.businessesService.validateLocationInRegion(lon, lat);
   }
 
   @Get('statistics')

@@ -10,6 +10,10 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module';
 import { ApiKeysService } from './modules/api-keys/api-keys.service';
 import { BusinessesModule } from './modules/businesses/businesses.module';
 import { RepartidoresModule } from './modules/repartidores/repartidores.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { CategoriesModule } from './modules/catalog/categories/categories.module';
+import { ProductsModule } from './modules/catalog/products/products.module';
+import { ServiceRegionsModule } from './modules/service-regions/service-regions.module';
 
 @Module({
   imports: [
@@ -18,6 +22,10 @@ import { RepartidoresModule } from './modules/repartidores/repartidores.module';
     ApiKeysModule,
     BusinessesModule,
     RepartidoresModule,
+    ClientsModule,
+    CategoriesModule,
+    ProductsModule,
+    ServiceRegionsModule,
     // Otros módulos se agregarán aquí
     // OrdersModule,
     // UsersModule,

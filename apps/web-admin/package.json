@@ -9,10 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@supabase/supabase-js": "^2.38.0",
     "next": "14.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@supabase/supabase-js": "^2.38.0"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -26,4 +27,3 @@
     "typescript": "^5"
   }
 }
-

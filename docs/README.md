@@ -64,6 +64,52 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 - Dashboard de impacto
 - Casos de éxito esperados
 
+### 9. [Estructura del Repositorio](./09-estructura-repositorio.md)
+- Organización de carpetas y archivos
+- Estructura de monorepo
+- Convenciones de código
+
+### 10. [Recomendación Backend](./10-recomendacion-backend.md)
+- Stack tecnológico recomendado
+- Arquitectura del backend
+- Consideraciones técnicas
+
+### 11. [Configuración de Entorno](./11-configuracion-entorno.md)
+- Variables de entorno
+- Configuración de base de datos
+- Setup inicial del proyecto
+
+### 12. [Autenticación y Seguridad](./12-autenticacion-seguridad.md)
+- Sistema de autenticación
+- Roles y permisos
+- Medidas de seguridad
+
+### 13. [Swagger y Documentación API](./13-swagger-documentacion.md)
+- Documentación de API
+- Configuración de Swagger
+- Endpoints disponibles
+
+### 14. [API Keys y Autenticación](./14-api-keys-autenticacion.md)
+- Sistema de API Keys
+- Autenticación de servicios
+- Gestión de claves
+
+### 15. [Configuración Supabase Redirects](./15-configuracion-supabase-redirects.md)
+- Configuración de redirects
+- URLs de callback
+- Configuración de Supabase
+
+### 16. [Catálogos Disponibles para Gestión](./16-catalogos-gestion.md)
+- Lista de catálogos del sistema
+- Estructura de categorías y productos
+- Funcionalidades de gestión requeridas
+
+### 17. [Análisis de Tipos de Negocios de Alimentos](./17-analisis-tipos-negocios-alimentos.md)
+- Análisis exhaustivo de 12 tipos de negocios de alimentos
+- Categorías de productos por tipo de negocio
+- Recomendaciones para implementación de catálogos
+- Matriz comparativa y plantillas sugeridas
+
 ## 🗺️ Navegación
 
 Cada documento incluye enlaces de navegación al final para moverse entre secciones:
