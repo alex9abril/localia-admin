@@ -14,6 +14,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { CategoriesModule } from './modules/catalog/categories/categories.module';
 import { ProductsModule } from './modules/catalog/products/products.module';
 import { ServiceRegionsModule } from './modules/service-regions/service-regions.module';
+import { BusinessUsersModule } from './modules/business-users/business-users.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ServiceRegionsModule } from './modules/service-regions/service-regions.
     CategoriesModule,
     ProductsModule,
     ServiceRegionsModule,
+    BusinessUsersModule,
     // Otros módulos se agregarán aquí
     // OrdersModule,
     // UsersModule,

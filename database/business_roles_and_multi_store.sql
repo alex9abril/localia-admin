@@ -467,7 +467,7 @@ RETURNS TABLE (
     last_name VARCHAR(100),
     phone VARCHAR(20),
     is_already_assigned BOOLEAN,
-    current_role business_role
+    assigned_role business_role
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -478,7 +478,7 @@ BEGIN
         up.last_name,
         up.phone,
         COALESCE(bu.is_active, FALSE) AS is_already_assigned,
-        bu.role AS current_role
+        bu.role AS assigned_role
     FROM auth.users au
     LEFT JOIN core.user_profiles up ON au.id = up.id
     LEFT JOIN core.business_users bu ON au.id = bu.user_id 

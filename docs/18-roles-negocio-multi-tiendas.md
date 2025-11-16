@@ -274,7 +274,7 @@ Esta función devuelve:
 - `last_name`: Apellido
 - `phone`: Teléfono
 - `is_already_assigned`: Si ya está asignado a la tienda
-- `current_role`: Rol actual en la tienda (si está asignado)
+- `assigned_role`: Rol asignado en la tienda (si está asignado)
 
 **Características:**
 - Muestra todos los usuarios del sistema

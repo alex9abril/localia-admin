@@ -2,14 +2,135 @@
 
 Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 
-## 📁 Archivos
+## 📁 Archivos SQL - Documentación Completa
 
-- **`schema.sql`**: Script SQL con la estructura completa de la base de datos (tablas, índices, triggers, funciones)
-- **`business_roles_and_multi_store.sql`**: 🆕 Sistema de roles de negocio y soporte para múltiples tiendas por cuenta (ver documentación en `docs/18-roles-negocio-multi-tiendas.md`)
-- **`seed_catalog.sql`**: Script para poblar datos de catálogo (categorías globales de ejemplo)
-- **`seed_delivery_cycle.sql`**: Script completo con un ciclo de delivery de ejemplo (usuarios, negocio, productos, pedido, entrega, evaluación, propina)
-- **`seed_roles_catalog.sql`**: ⚠️ OPCIONAL - Script de catálogo de roles para documentación (no necesario para funcionamiento)
-- **`api_keys_schema.sql`**: Script para crear tablas de API Keys y tracking de peticiones (sistema de autenticación de aplicaciones)
+### Secuencia de Creación y Descripción
+
+Los archivos SQL están organizados por orden de creación y propósito. A continuación se documenta cada uno:
+
+#### 1. **`schema.sql`** (Base - Ejecutar primero)
+**Descripción:** Script principal con la estructura completa de la base de datos.  
+**Contiene:** Schemas, tablas, índices, triggers, funciones, ENUMs, y toda la estructura base.  
+**Cuándo ejecutar:** Primero, antes que cualquier otro script.  
+**Dependencias:** Requiere extensión PostGIS.
+
+#### 2. **`api_keys_schema.sql`**
+**Descripción:** Sistema de autenticación mediante API Keys para aplicaciones externas.  
+**Contiene:** Tablas `api_keys` y `api_key_requests` para tracking de peticiones.  
+**Cuándo ejecutar:** Después de `schema.sql`, si necesitas autenticación de aplicaciones.  
+**Dependencias:** `schema.sql`
+
+#### 3. **`business_categories_catalog.sql`**
+**Descripción:** Catálogo de categorías de negocios (tipos de establecimientos).  
+**Contiene:** Categorías predefinidas para clasificar negocios (Restaurante, Café, Tienda, etc.).  
+**Cuándo ejecutar:** Después de `schema.sql`, para tener categorías base.  
+**Dependencias:** `schema.sql`
+
+#### 4. **`service_regions.sql`**
+**Descripción:** Sistema de regiones de servicio (áreas de cobertura de delivery).  
+**Contiene:** Tabla `service_regions` con polígonos GeoJSON para definir zonas de entrega.  
+**Cuándo ejecutar:** Después de `schema.sql`, si necesitas definir regiones de servicio.  
+**Dependencias:** `schema.sql`
+
+#### 5. **`migration_fix_wallet_types.sql`**
+**Descripción:** Migración para cambiar campos de wallet de UUID a VARCHAR(255).  
+**Contiene:** ALTER TABLE para campos `wallet_*` en múltiples tablas.  
+**Cuándo ejecutar:** Solo si ya tienes datos y necesitas cambiar tipos de wallet.  
+**Dependencias:** `schema.sql` (con datos existentes)
+
+#### 6. **`business_roles_and_multi_store.sql`** 🆕
+**Descripción:** Sistema de roles de negocio y soporte para múltiples tiendas por cuenta.  
+**Contiene:** 
+- ENUM `business_role` (superadmin, admin, operativo_aceptador, operativo_cocina)
+- Tabla `core.business_users` (relación muchos-a-muchos usuarios-negocios)
+- Funciones para gestión de usuarios y permisos
+- Triggers de validación
+- Migración automática de owners existentes a superadmin
+**Cuándo ejecutar:** Después de `schema.sql`, para habilitar roles de negocio.  
+**Dependencias:** `schema.sql`  
+**Documentación:** Ver `docs/18-roles-negocio-multi-tiendas.md`
+
+#### 7. **`superadmin_account_users.sql`** 🆕
+**Descripción:** Funciones para gestión de usuarios a nivel de cuenta del superadmin.  
+**Contiene:**
+- `get_superadmin_account_users()` - Ver usuarios de todas las tiendas del superadmin
+- `get_available_users_for_superadmin_account()` - Usuarios disponibles para asignar
+- `remove_user_from_superadmin_account()` - Remover de todas las tiendas
+- `get_superadmin_account_users_summary()` - Resumen por tienda
+**Cuándo ejecutar:** Después de `business_roles_and_multi_store.sql`.  
+**Dependencias:** `business_roles_and_multi_store.sql`
+
+#### 8. **`migrate_user_to_roles.sql`**
+**Descripción:** Script de migración para usuarios existentes al nuevo sistema de roles.  
+**Contiene:** Migración específica para un usuario (configurado con UUID del usuario).  
+**Cuándo ejecutar:** Después de `business_roles_and_multi_store.sql`, para migrar usuarios existentes.  
+**Dependencias:** `business_roles_and_multi_store.sql`  
+**Nota:** Este script está configurado para un usuario específico. Modifica el UUID antes de ejecutar.
+
+#### 9. **`seed_catalog.sql`**
+**Descripción:** Datos de catálogo básicos (categorías globales de ejemplo).  
+**Contiene:** Categorías de productos predefinidas (Entradas, Platos Principales, Bebidas, Postres).  
+**Cuándo ejecutar:** Después de `schema.sql`, opcional para tener categorías base.  
+**Dependencias:** `schema.sql`
+
+#### 10. **`seed_delivery_cycle.sql`**
+**Descripción:** Ciclo completo de delivery de ejemplo para pruebas.  
+**Contiene:** Usuarios, negocio, productos, pedido, entrega, evaluación y propina.  
+**Cuándo ejecutar:** Después de crear usuarios en Supabase Auth, para datos de prueba.  
+**Dependencias:** `schema.sql`, usuarios creados en `auth.users`
+
+#### 11. **`seed_roles_catalog.sql`** ⚠️ OPCIONAL
+**Descripción:** Catálogo de roles para documentación (no necesario para funcionamiento).  
+**Contiene:** Tabla `roles_catalog` con permisos y descripciones de roles.  
+**Cuándo ejecutar:** Opcional, solo si necesitas documentación de permisos.  
+**Dependencias:** `schema.sql`  
+**Nota:** Los roles funcionan perfectamente solo con el ENUM definido en `schema.sql`.
+
+#### 12. **`create_profiles_only.sql`**
+**Descripción:** Script simplificado para crear perfiles de usuarios existentes en Supabase Auth.  
+**Contiene:** Creación de `user_profiles` para usuarios predefinidos (cliente, repartidor, local).  
+**Cuándo ejecutar:** Después de crear usuarios en Supabase Dashboard.  
+**Dependencias:** Usuarios creados en `auth.users`
+
+#### 13. **`create_test_users.sql`** ⚠️ Puede fallar
+**Descripción:** Intenta crear usuarios y perfiles (requiere permisos de service_role).  
+**Contiene:** Creación de usuarios en `auth.users` y perfiles en `user_profiles`.  
+**Cuándo ejecutar:** Solo si tienes permisos de service_role (generalmente falla).  
+**Dependencias:** Permisos de service_role  
+**Nota:** ⚠️ Generalmente falla. Usa `create_profiles_only.sql` en su lugar.
+
+#### 14. **`fix_admin_role.sql`**
+**Descripción:** Script de corrección para roles de administrador.  
+**Contiene:** Correcciones específicas para roles admin.  
+**Cuándo ejecutar:** Solo si necesitas corregir roles admin existentes.  
+**Dependencias:** `schema.sql` (con datos existentes)
+
+### Orden Recomendado de Ejecución
+
+```sql
+-- 1. Base (OBLIGATORIO)
+\i database/schema.sql
+
+-- 2. Extensiones y sistemas adicionales (OPCIONAL)
+\i database/api_keys_schema.sql
+\i database/business_categories_catalog.sql
+\i database/service_regions.sql
+
+-- 3. Sistema de roles de negocio (OBLIGATORIO para gestión de usuarios)
+\i database/business_roles_and_multi_store.sql
+\i database/superadmin_account_users.sql
+
+-- 4. Migraciones de usuarios existentes (si aplica)
+\i database/migrate_user_to_roles.sql  -- Modificar UUID antes de ejecutar
+
+-- 5. Datos de ejemplo (OPCIONAL)
+\i database/seed_catalog.sql
+\i database/seed_delivery_cycle.sql  -- Requiere usuarios en auth.users
+
+-- 6. Scripts opcionales
+\i database/seed_roles_catalog.sql  -- Solo si necesitas documentación
+\i database/create_profiles_only.sql  -- Después de crear usuarios en Dashboard
+```
 
 ## 🗄️ Estructura de la Base de Datos
 
