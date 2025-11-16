@@ -110,6 +110,13 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 - Recomendaciones para implementación de catálogos
 - Matriz comparativa y plantillas sugeridas
 
+### 18. [Roles de Negocio y Múltiples Tiendas por Cuenta](./18-roles-negocio-multi-tiendas.md)
+- Sistema de roles de negocio (superadmin, admin, operativo_aceptador, operativo_cocina)
+- Soporte para múltiples tiendas por cuenta
+- Configurador de permisos del superadmin
+- Funciones SQL para gestión de usuarios y permisos
+- Flujos de trabajo y casos de uso
+
 ## 🗺️ Navegación
 
 Cada documento incluye enlaces de navegación al final para moverse entre secciones:

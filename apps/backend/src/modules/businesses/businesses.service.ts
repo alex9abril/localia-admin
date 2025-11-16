@@ -405,6 +405,8 @@ export class BusinessesService {
 
     const pool = dbPool;
 
+    try {
+
     // Verificar que el usuario no tenga ya un negocio
     const existingBusiness = await pool.query(
       'SELECT id FROM core.businesses WHERE owner_id = $1',
@@ -452,30 +454,65 @@ export class BusinessesService {
     }
 
     // Crear dirección si se proporciona información de dirección
+    // Mapear los campos del DTO a las columnas reales de la tabla addresses
     let addressId: string | null = null;
     if (createDto.address_line1 || createDto.city) {
+      // Dividir address_line1 en street y street_number si es posible
+      // Ejemplo: "Avenida Álvaro Obregón 45" -> street: "Avenida Álvaro Obregón", street_number: "45"
+      let street = createDto.address_line1 || null;
+      let streetNumber = null;
+      
+      if (street) {
+        // Intentar extraer el número de la calle (último número al final)
+        const numberMatch = street.match(/(.+?)\s+(\d+)$/);
+        if (numberMatch) {
+          street = numberMatch[1].trim();
+          streetNumber = numberMatch[2];
+        }
+      }
+
       const addressResult = await pool.query(
         `INSERT INTO core.addresses (
-          user_id, address_type, address_line1, address_line2, 
+          user_id, label, street, street_number, neighborhood, 
           city, state, postal_code, country, location, is_default, is_active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ST_MakePoint($9, $10)::point, $11, $12)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_MakePoint($10, $11)::point, $12, $13)
         RETURNING id`,
         [
           ownerId,
-          'Local',
-          createDto.address_line1 || null,
-          createDto.address_line2 || null,
+          'Local', // label
+          street, // street (dirección completa o sin número)
+          streetNumber, // street_number (número extraído)
+          createDto.address_line2 || null, // neighborhood (colonia/barrio)
           createDto.city || null,
           createDto.state || null,
           createDto.postal_code || null,
           createDto.country || 'México',
           createDto.longitude,
           createDto.latitude,
-          true,
-          true,
+          true, // is_default
+          true, // is_active
         ]
       );
       addressId = addressResult.rows[0]?.id || null;
+    }
+
+    // Preparar tags - asegurar que sea un array válido
+    const tagsArray = Array.isArray(createDto.tags) && createDto.tags.length > 0 
+      ? createDto.tags 
+      : null; // null en lugar de array vacío para evitar problemas
+
+    // Preparar opening_hours - asegurar que sea JSONB válido
+    let openingHoursJsonb = null;
+    if (createDto.opening_hours) {
+      try {
+        // Si ya es un objeto, convertirlo a JSON
+        openingHoursJsonb = typeof createDto.opening_hours === 'string' 
+          ? createDto.opening_hours 
+          : JSON.stringify(createDto.opening_hours);
+      } catch (e) {
+        console.warn('[BusinessesService] Error serializando opening_hours:', e);
+        openingHoursJsonb = null;
+      }
     }
 
     // Crear el negocio
@@ -493,7 +530,7 @@ export class BusinessesService {
         createDto.description || null,
         createDto.category, // Mantener category (nombre) para compatibilidad
         categoryId, // category_id (FK al catálogo)
-        createDto.tags || [],
+        tagsArray, // Array de tags o null
         createDto.phone || null,
         createDto.email || null,
         createDto.website_url || null,
@@ -503,7 +540,7 @@ export class BusinessesService {
         true, // is_active
         true, // accepts_orders
         createDto.uses_eco_packaging || false,
-        createDto.opening_hours ? JSON.stringify(createDto.opening_hours) : null,
+        openingHoursJsonb, // JSONB o null
       ]
     );
 
@@ -524,6 +561,33 @@ export class BusinessesService {
     }
 
     return business;
+    } catch (error: any) {
+      console.error('[BusinessesService] Error al crear negocio:', {
+        error: error.message,
+        stack: error.stack,
+        ownerId,
+        createDto: {
+          ...createDto,
+          email: createDto.email || 'no proporcionado',
+        },
+      });
+      
+      // Si es un error de base de datos conocido, lanzar BadRequestException
+      if (error.code === '23505') { // Violación de constraint único
+        throw new BadRequestException('Ya existe un negocio con estos datos');
+      }
+      if (error.code === '23503') { // Violación de foreign key
+        throw new BadRequestException('Datos inválidos: referencia a registro inexistente');
+      }
+      if (error.code === '23502') { // Violación de NOT NULL
+        throw new BadRequestException('Faltan campos requeridos');
+      }
+      
+      // Para otros errores, lanzar el error original con más contexto
+      throw new BadRequestException(
+        `Error al crear el negocio: ${error.message || 'Error desconocido'}`
+      );
+    }
   }
 
   /**

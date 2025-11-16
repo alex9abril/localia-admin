@@ -633,6 +633,12 @@ Además de las categorías, usar **tags** para filtros adicionales:
 
 ---
 
+**Anterior:** [Catálogos Disponibles para Gestión](./16-catalogos-gestion.md)  
+**Siguiente:** [Roles de Negocio y Múltiples Tiendas por Cuenta](./18-roles-negocio-multi-tiendas.md)  
+**Volver al inicio:** [README Principal](./README.md)
+
+---
+
 **Versión:** 1.0  
 **Fecha:** 2024-11-18  
 **Autor:** Análisis basado en investigación de mercado y estructura del sistema Localia

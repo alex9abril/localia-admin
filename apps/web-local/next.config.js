@@ -11,6 +11,9 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 
       process.env.GOOGLE_MAPS_API_KEY ||
       (process.env.NODE_ENV === 'development' ? process.env.GOOGLE_MAPS_API_KEY : undefined),
+    // Modo de desarrollo: deshabilita geocoding para evitar costos
+    // Establece NEXT_PUBLIC_DISABLE_GEOCODING=true en .env.local para activar
+    NEXT_PUBLIC_DISABLE_GEOCODING: process.env.NEXT_PUBLIC_DISABLE_GEOCODING || 'false',
   },
 }
 

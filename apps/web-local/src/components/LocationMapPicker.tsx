@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { businessService, ServiceRegion } from '@/lib/business';
 
+interface AddressComponents {
+  street_number?: string;
+  route?: string;
+  sublocality?: string;
+  locality?: string;
+  administrative_area_level_1?: string;
+  postal_code?: string;
+  country?: string;
+}
+
 interface LocationMapPickerProps {
   longitude: number;
   latitude: number;
-  onLocationChange: (longitude: number, latitude: number, address: string) => void;
+  onLocationChange: (longitude: number, latitude: number, address: string, addressComponents?: AddressComponents) => void;
   onValidationChange?: (isValid: boolean, message?: string) => void;
 }
 
@@ -33,10 +43,31 @@ export default function LocationMapPicker({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  // Estado para forzar re-render cuando el ref esté disponible
+  // Estado para forzar re-render cuando el ref esté disponible y tenga dimensiones
   const [refReady, setRefReady] = useState(false);
 
-  // Verificar periódicamente si el ref está disponible (para renderizado condicional)
+  // Callback ref para detectar cuando el elemento se monta
+  const setMapRef = (node: HTMLDivElement | null) => {
+    if (node) {
+      console.log('[LocationMapPicker] Callback ref ejecutado, elemento montado', {
+        offsetHeight: node.offsetHeight,
+        offsetWidth: node.offsetWidth,
+        clientHeight: node.clientHeight,
+        clientWidth: node.clientWidth,
+      });
+      mapRef.current = node;
+      // Verificar dimensiones inmediatamente
+      if (node.offsetHeight > 0 && node.offsetWidth > 0) {
+        console.log('[LocationMapPicker] Elemento tiene dimensiones desde el callback ref');
+        setRefReady(true);
+      }
+    } else {
+      console.log('[LocationMapPicker] Callback ref ejecutado, elemento desmontado');
+      mapRef.current = null;
+    }
+  };
+
+  // Verificar periódicamente si el ref está disponible y tiene dimensiones
   useEffect(() => {
     // Si ya está listo, no hacer nada
     if (refReady) {
@@ -45,12 +76,20 @@ export default function LocationMapPicker({
 
     const checkRef = () => {
       if (mapRef.current) {
-        console.log('[LocationMapPicker] mapRef disponible, estableciendo refReady = true', {
-          offsetHeight: mapRef.current.offsetHeight,
-          offsetWidth: mapRef.current.offsetWidth,
-        });
-        setRefReady(true);
-        return true;
+        const hasDimensions = mapRef.current.offsetHeight > 0 && mapRef.current.offsetWidth > 0;
+        if (hasDimensions) {
+          console.log('[LocationMapPicker] mapRef disponible con dimensiones, estableciendo refReady = true', {
+            offsetHeight: mapRef.current.offsetHeight,
+            offsetWidth: mapRef.current.offsetWidth,
+          });
+          setRefReady(true);
+          return true;
+        } else {
+          console.log('[LocationMapPicker] mapRef disponible pero sin dimensiones aún', {
+            offsetHeight: mapRef.current.offsetHeight,
+            offsetWidth: mapRef.current.offsetWidth,
+          });
+        }
       }
       return false;
     };
@@ -60,27 +99,79 @@ export default function LocationMapPicker({
       return;
     }
 
-    // Si no está disponible, verificar periódicamente
+    // Usar ResizeObserver para detectar cuando el contenedor obtiene dimensiones
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 0 && height > 0 && !refReady) {
+            console.log('[LocationMapPicker] ResizeObserver detectó dimensiones', { width, height });
+            setRefReady(true);
+          }
+        }
+      });
+      resizeObserver.observe(mapRef.current);
+    }
+
+    // Si no está disponible o no tiene dimensiones, verificar periódicamente como fallback
     const interval = setInterval(() => {
       if (checkRef()) {
         clearInterval(interval);
+        if (resizeObserver) {
+          resizeObserver.disconnect();
+        }
       }
-    }, 50); // Verificar cada 50ms
+    }, 100); // Verificar cada 100ms
 
-    // Limpiar después de 3 segundos
+    // Limpiar después de 5 segundos
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      if (mapRef.current && !refReady) {
-        console.warn('[LocationMapPicker] Timeout: ref disponible pero refReady no se estableció, forzando');
-        setRefReady(true);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
       }
-    }, 3000);
+      if (mapRef.current) {
+        const hasDimensions = mapRef.current.offsetHeight > 0 && mapRef.current.offsetWidth > 0;
+        if (hasDimensions && !refReady) {
+          console.warn('[LocationMapPicker] Timeout: ref disponible con dimensiones pero refReady no se estableció, forzando');
+          setRefReady(true);
+        } else if (!hasDimensions) {
+          console.warn('[LocationMapPicker] Timeout: ref disponible pero sin dimensiones', {
+            offsetHeight: mapRef.current.offsetHeight,
+            offsetWidth: mapRef.current.offsetWidth,
+          });
+        }
+      }
+    }, 5000);
 
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
     };
   }, [refReady]);
+
+  // Verificar el ref después de cada render
+  useEffect(() => {
+    console.log('[LocationMapPicker] useEffect post-render - verificando ref', {
+      mapRefCurrent: mapRef.current,
+      mapRefExists: !!mapRef.current,
+      refReady,
+      loading,
+    });
+    
+    if (mapRef.current) {
+      console.log('[LocationMapPicker] Ref encontrado en post-render', {
+        offsetHeight: mapRef.current.offsetHeight,
+        offsetWidth: mapRef.current.offsetWidth,
+        clientHeight: mapRef.current.clientHeight,
+        clientWidth: mapRef.current.clientWidth,
+        computedStyle: window.getComputedStyle(mapRef.current),
+      });
+    }
+  });
 
   // Cargar región activa
   useEffect(() => {
@@ -118,9 +209,13 @@ export default function LocationMapPicker({
       return;
     }
 
-    // Si ya no estamos cargando, no reiniciar
-    if (!loading) {
-      console.log('[LocationMapPicker] Ya no estamos en estado de carga');
+    // Verificar que el contenedor tenga dimensiones
+    const hasDimensions = mapRef.current.offsetHeight > 0 && mapRef.current.offsetWidth > 0;
+    if (!hasDimensions) {
+      console.log('[LocationMapPicker] Contenedor sin dimensiones aún', {
+        offsetHeight: mapRef.current.offsetHeight,
+        offsetWidth: mapRef.current.offsetWidth,
+      });
       return;
     }
 
@@ -128,6 +223,7 @@ export default function LocationMapPicker({
     console.log('[LocationMapPicker] Iniciando carga de Google Maps', {
       mapRefHeight: mapRef.current.offsetHeight,
       mapRefWidth: mapRef.current.offsetWidth,
+      loading,
     });
 
     const loadGoogleMaps = async () => {
@@ -244,11 +340,23 @@ export default function LocationMapPicker({
         await loadPromise;
         // Esperar un momento para asegurar que el ref esté disponible
         // y que React haya renderizado el componente
+        // También esperar a que el contenedor tenga dimensiones (importante para modales)
         setTimeout(() => {
-          if (isMounted) {
-            initializeMap();
+          if (isMounted && mapRef.current) {
+            const hasDimensions = mapRef.current.offsetHeight > 0 && mapRef.current.offsetWidth > 0;
+            if (hasDimensions) {
+              initializeMap();
+            } else {
+              // Si aún no tiene dimensiones, esperar un poco más
+              console.log('[LocationMapPicker] Esperando dimensiones del contenedor...');
+              setTimeout(() => {
+                if (isMounted && mapRef.current) {
+                  initializeMap();
+                }
+              }, 300);
+            }
           }
-        }, 100);
+        }, 200);
       } catch (err: any) {
         window.__googleMapsLoading = undefined;
         if (isMounted) {
@@ -262,6 +370,22 @@ export default function LocationMapPicker({
       // Verificar que el ref esté disponible
       if (!mapRef.current) {
         console.warn('[LocationMapPicker] mapRef no está disponible aún, reintentando...');
+        // Reintentar después de un breve delay
+        setTimeout(() => {
+          if (isMounted && mapRef.current && window.google && window.google.maps) {
+            initializeMap();
+          }
+        }, 200);
+        return;
+      }
+
+      // Verificar que el contenedor tenga dimensiones
+      const hasDimensions = mapRef.current.offsetHeight > 0 && mapRef.current.offsetWidth > 0;
+      if (!hasDimensions) {
+        console.warn('[LocationMapPicker] Contenedor sin dimensiones aún, reintentando...', {
+          offsetHeight: mapRef.current.offsetHeight,
+          offsetWidth: mapRef.current.offsetWidth,
+        });
         // Reintentar después de un breve delay
         setTimeout(() => {
           if (isMounted && mapRef.current && window.google && window.google.maps) {
@@ -311,6 +435,14 @@ export default function LocationMapPicker({
 
         console.log('[LocationMapPicker] Instancia del mapa creada');
         setMap(mapInstance);
+
+        // Forzar resize del mapa después de un breve delay para asegurar que se renderice correctamente
+        setTimeout(() => {
+          if (mapInstance && window.google?.maps?.event) {
+            window.google.maps.event.trigger(mapInstance, 'resize');
+            console.log('[LocationMapPicker] Resize del mapa disparado');
+          }
+        }, 100);
 
         // Dibujar polígono de cobertura si hay región
         if (region && region.coverage_area_geojson) {
@@ -401,7 +533,7 @@ export default function LocationMapPicker({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refReady, region, map, loading]); // Dependemos de refReady, región, mapa y loading
+  }, [refReady, region, map]); // Dependemos de refReady, región y mapa (loading se maneja internamente)
 
   // Actualizar marcador cuando cambian las coordenadas (sin reinicializar el mapa)
   useEffect(() => {
@@ -424,6 +556,38 @@ export default function LocationMapPicker({
         onValidationChange(validation.isValid, validation.message);
       }
 
+      // Verificar si el geocoding está deshabilitado en modo desarrollo
+      const disableGeocoding = process.env.NEXT_PUBLIC_DISABLE_GEOCODING === 'true';
+      
+      if (disableGeocoding) {
+        console.log('[LocationMapPicker] Geocoding deshabilitado en modo desarrollo, usando datos mock');
+        
+        // Usar datos mock para desarrollo
+        const mockAddressComponents: AddressComponents = {
+          route: 'Avenida Álvaro Obregón',
+          street_number: '45',
+          sublocality: 'Roma Norte',
+          locality: 'Ciudad de México',
+          administrative_area_level_1: 'CDMX',
+          postal_code: '06700',
+          country: 'México',
+        };
+
+        const mockStreetAddress = `${mockAddressComponents.street_number} ${mockAddressComponents.route}`;
+        const mockFormattedAddress = `${mockStreetAddress}, ${mockAddressComponents.sublocality}, ${mockAddressComponents.locality}`;
+
+        setAddress(mockFormattedAddress);
+        
+        console.log('[LocationMapPicker] Usando dirección mock:', {
+          mockFormattedAddress,
+          mockAddressComponents,
+          mockStreetAddress,
+        });
+
+        onLocationChange(lng, lat, mockStreetAddress, mockAddressComponents);
+        return;
+      }
+
       // Obtener dirección usando Geocoding
       if (window.google && window.google.maps && window.google.maps.Geocoder) {
         const geocoder = new window.google.maps.Geocoder();
@@ -431,18 +595,114 @@ export default function LocationMapPicker({
           { location: { lat, lng } },
           (results: any[], status: string) => {
             if (status === 'OK' && results[0]) {
-              const formattedAddress = results[0].formatted_address;
+              const result = results[0];
+              const formattedAddress = result.formatted_address;
               setAddress(formattedAddress);
-              onLocationChange(lng, lat, formattedAddress);
+
+              // Extraer componentes de la dirección
+              const addressComponents: AddressComponents = {};
+              
+              result.address_components.forEach((component: any) => {
+                const types = component.types;
+                
+                if (types.includes('street_number')) {
+                  addressComponents.street_number = component.long_name;
+                }
+                if (types.includes('route')) {
+                  addressComponents.route = component.long_name;
+                }
+                if (types.includes('sublocality') || types.includes('sublocality_level_1')) {
+                  addressComponents.sublocality = component.long_name;
+                }
+                if (types.includes('locality')) {
+                  addressComponents.locality = component.long_name;
+                }
+                if (types.includes('administrative_area_level_1')) {
+                  addressComponents.administrative_area_level_1 = component.short_name;
+                }
+                if (types.includes('postal_code')) {
+                  addressComponents.postal_code = component.long_name;
+                }
+                if (types.includes('country')) {
+                  addressComponents.country = component.long_name;
+                }
+              });
+
+              // Construir dirección completa (calle y número)
+              const streetAddress = [
+                addressComponents.street_number,
+                addressComponents.route
+              ].filter(Boolean).join(' ');
+
+              console.log('[LocationMapPicker] Dirección extraída:', {
+                formattedAddress,
+                addressComponents,
+                streetAddress,
+              });
+
+              onLocationChange(lng, lat, streetAddress || formattedAddress, addressComponents);
             } else {
               console.warn('Geocoding falló:', status);
-              setAddress('');
-              onLocationChange(lng, lat, '');
+              
+              // Si falla por facturación, usar datos mock como fallback
+              // Esto permite que el usuario tenga una dirección de ejemplo mientras desarrolla
+              if (status === 'REQUEST_DENIED' || status === 'OVER_QUERY_LIMIT') {
+                console.log('[LocationMapPicker] Geocoding falló por facturación, usando datos mock como fallback');
+                
+                // Generar datos mock basados en las coordenadas para que varíen ligeramente
+                // Esto hace que cada ubicación tenga una dirección diferente
+                const coordHash = Math.abs(Math.floor(lng * 1000) + Math.floor(lat * 1000));
+                const streetNumbers = ['45', '123', '78', '234', '56', '189', '67', '145'];
+                const streetNames = [
+                  'Avenida Álvaro Obregón',
+                  'Calle Orizaba',
+                  'Avenida Insurgentes',
+                  'Calle Colima',
+                  'Avenida Cuauhtémoc',
+                  'Calle Querétaro',
+                  'Avenida Yucatán',
+                  'Calle Tabasco'
+                ];
+                const colonias = [
+                  'Roma Norte',
+                  'Roma Sur',
+                  'Condesa',
+                  'Hipódromo',
+                  'Del Valle',
+                  'Nápoles',
+                  'Escandón',
+                  'San Miguel'
+                ];
+                
+                const streetNumber = streetNumbers[coordHash % streetNumbers.length];
+                const streetName = streetNames[coordHash % streetNames.length];
+                const colonia = colonias[coordHash % colonias.length];
+                
+                const mockAddressComponents: AddressComponents = {
+                  route: streetName,
+                  street_number: streetNumber,
+                  sublocality: colonia,
+                  locality: 'Ciudad de México',
+                  administrative_area_level_1: 'CDMX',
+                  postal_code: '06700',
+                  country: 'México',
+                };
+
+                const mockStreetAddress = `${mockAddressComponents.street_number} ${mockAddressComponents.route}`;
+                const mockFormattedAddress = `${mockStreetAddress}, ${mockAddressComponents.sublocality}, ${mockAddressComponents.locality}`;
+
+                setAddress(mockFormattedAddress);
+                onLocationChange(lng, lat, mockStreetAddress, mockAddressComponents);
+              } else {
+                // Otros errores de geocoding
+                setAddress('');
+                onLocationChange(lng, lat, '', undefined);
+              }
             }
           }
         );
       } else {
-        onLocationChange(lng, lat, '');
+        onLocationChange(lng, lat, '', undefined);
       }
     } catch (err: any) {
       console.error('Error validando ubicación:', err);
@@ -453,26 +713,34 @@ export default function LocationMapPicker({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando mapa...</p>
-        </div>
-      </div>
-    );
-  }
+  // Log del render para debugging
+  console.log('[LocationMapPicker] Render ejecutado', {
+    loading,
+    error,
+    refReady,
+    mapRefExists: !!mapRef.current,
+    mapExists: !!map,
+    mapRefCurrent: mapRef.current,
+  });
 
+  // Si hay error, mostrar mensaje pero mantener el div del mapa para que el ref se establezca
   if (error) {
     return (
-      <div className="w-full h-96 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center">
-        <div className="text-center p-4">
-          <p className="text-red-800 font-medium mb-2">Error</p>
-          <p className="text-red-600 text-sm">{error}</p>
-          <p className="text-red-600 text-xs mt-2">
-            Asegúrate de tener configurada la variable NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-          </p>
+      <div className="space-y-4">
+        <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-300 relative">
+          <div 
+            ref={setMapRef} 
+            className="w-full h-full" 
+          />
+          <div className="absolute inset-0 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center z-10">
+            <div className="text-center p-4">
+              <p className="text-red-800 font-medium mb-2">Error</p>
+              <p className="text-red-600 text-sm">{error}</p>
+              <p className="text-red-600 text-xs mt-2">
+                Asegúrate de tener configurada la variable NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -480,11 +748,21 @@ export default function LocationMapPicker({
 
   return (
     <div className="space-y-4">
-      <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-300">
+      <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-300 relative">
+        {/* El div del mapa siempre debe renderizarse para que el ref se establezca */}
         <div 
-          ref={mapRef} 
+          ref={setMapRef} 
           className="w-full h-full" 
         />
+        {/* Overlay de carga solo si está cargando y no hay mapa */}
+        {loading && !map && (
+          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Cargando mapa...</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Estado de validación */}
@@ -515,6 +793,16 @@ export default function LocationMapPicker({
       <p className="text-xs text-gray-500">
         Arrastra el marcador o haz clic en el mapa para seleccionar la ubicación de tu negocio.
       </p>
+      
+      {/* Mensaje cuando el geocoding está deshabilitado */}
+      {process.env.NEXT_PUBLIC_DISABLE_GEOCODING === 'true' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mt-2">
+          <p className="text-xs text-blue-800">
+            <strong>🔧 Modo Desarrollo:</strong> El geocoding está deshabilitado. Se están usando datos de ejemplo. 
+            Para habilitar el geocoding real, establece <code className="bg-blue-100 px-1 rounded">NEXT_PUBLIC_DISABLE_GEOCODING=false</code> en tu archivo <code className="bg-blue-100 px-1 rounded">.env.local</code>
+          </p>
+        </div>
+      )}
       
       {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mt-2">

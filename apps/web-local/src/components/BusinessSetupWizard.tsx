@@ -8,7 +8,7 @@ interface BusinessSetupWizardProps {
 }
 
 export default function BusinessSetupWizard({ onComplete }: BusinessSetupWizardProps) {
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -117,14 +117,53 @@ export default function BusinessSetupWizard({ onComplete }: BusinessSetupWizardP
     setStep(step + 1);
   };
 
-  const handleLocationChange = (lng: number, lat: number, address: string) => {
+  const handleLocationChange = (lng: number, lat: number, address: string, addressComponents?: {
+    street_number?: string;
+    route?: string;
+    sublocality?: string;
+    locality?: string;
+    administrative_area_level_1?: string;
+    postal_code?: string;
+    country?: string;
+  }) => {
+    // Construir dirección completa (calle y número)
+    const streetAddress = address || 
+      [addressComponents?.street_number, addressComponents?.route]
+        .filter(Boolean)
+        .join(' ') || '';
+
     setFormData(prev => ({
       ...prev,
       longitude: lng,
       latitude: lat,
-      address_line1: address || prev.address_line1,
+      // Solo actualizar dirección si hay datos nuevos (no limpiar si viene vacío)
+      // Esto permite que el usuario ingrese la dirección manualmente cuando el geocoding falla
+      address_line1: streetAddress || prev.address_line1,
+      // Solo actualizar si hay datos nuevos
+      address_line2: addressComponents?.sublocality || prev.address_line2,
+      city: addressComponents?.locality || prev.city,
+      state: addressComponents?.administrative_area_level_1 || prev.state,
+      postal_code: addressComponents?.postal_code || prev.postal_code,
     }));
-    setSelectedAddress(address);
+    
+    // Solo actualizar selectedAddress si hay una dirección
+    if (address || streetAddress) {
+      setSelectedAddress(address || streetAddress);
+    }
+    
+    console.log('[BusinessSetupWizard] Dirección actualizada:', {
+      address,
+      addressComponents,
+      streetAddress,
+      hasAddress: !!(address || streetAddress),
+      formData: {
+        address_line1: streetAddress || 'mantener valor anterior',
+        address_line2: addressComponents?.sublocality || 'mantener valor anterior',
+        city: addressComponents?.locality || 'mantener valor anterior',
+        state: addressComponents?.administrative_area_level_1 || 'mantener valor anterior',
+        postal_code: addressComponents?.postal_code || 'mantener valor anterior',
+      },
+    });
   };
 
   const handleValidationChange = (isValid: boolean, message?: string) => {
@@ -145,7 +184,39 @@ export default function BusinessSetupWizard({ onComplete }: BusinessSetupWizardP
     setLoading(true);
 
     try {
-      await businessService.createBusiness(formData);
+      // Preparar datos para enviar
+      // Si el email del formulario está vacío, usar el email del usuario autenticado
+      // Si ambos están vacíos, no incluir el campo para evitar validación de email vacío
+      const emailValue = formData.email?.trim();
+      const finalEmail = emailValue || user?.email;
+
+      // Crear objeto sin el campo email si está vacío (para que no se valide)
+      const dataToSend: CreateBusinessData = {
+        name: formData.name,
+        legal_name: formData.legal_name,
+        description: formData.description,
+        category: formData.category,
+        phone: formData.phone,
+        // Solo incluir email si tiene un valor válido
+        ...(finalEmail ? { email: finalEmail } : {}),
+        longitude: formData.longitude,
+        latitude: formData.latitude,
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.postal_code,
+        country: formData.country,
+        uses_eco_packaging: formData.uses_eco_packaging,
+      };
+
+      console.log('[BusinessSetupWizard] Enviando datos:', {
+        ...dataToSend,
+        email: dataToSend.email || 'no enviado (opcional)',
+        userEmail: user?.email || 'no disponible',
+      });
+
+      await businessService.createBusiness(dataToSend);
       await refreshUser();
       onComplete();
     } catch (err: any) {

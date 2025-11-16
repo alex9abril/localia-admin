@@ -5,6 +5,7 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 ## 📁 Archivos
 
 - **`schema.sql`**: Script SQL con la estructura completa de la base de datos (tablas, índices, triggers, funciones)
+- **`business_roles_and_multi_store.sql`**: 🆕 Sistema de roles de negocio y soporte para múltiples tiendas por cuenta (ver documentación en `docs/18-roles-negocio-multi-tiendas.md`)
 - **`seed_catalog.sql`**: Script para poblar datos de catálogo (categorías globales de ejemplo)
 - **`seed_delivery_cycle.sql`**: Script completo con un ciclo de delivery de ejemplo (usuarios, negocio, productos, pedido, entrega, evaluación, propina)
 - **`seed_roles_catalog.sql`**: ⚠️ OPCIONAL - Script de catálogo de roles para documentación (no necesario para funcionamiento)
@@ -46,6 +47,7 @@ La base de datos está organizada en **7 schemas** para mejor mantenibilidad:
 - `user_profiles` - Perfiles de usuario que extienden `auth.users` de Supabase (roles, información personal)
 - `addresses` - Direcciones de usuarios con geolocalización
 - `businesses` - Locales/negocios registrados
+- `business_users` - 🆕 Relación muchos-a-muchos entre usuarios y negocios (roles de negocio y múltiples tiendas por cuenta) - Ver `docs/18-roles-negocio-multi-tiendas.md`
 - `repartidores` - Información específica de repartidores
 
 **Nota:** La autenticación se maneja mediante Supabase Auth (`auth.users`). Esta tabla solo contiene información de perfil y roles.
