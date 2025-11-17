@@ -10,6 +10,7 @@ import {
   NotFoundException,
   BadRequestException,
   ServiceUnavailableException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,6 +28,8 @@ import { BusinessesService } from './businesses.service';
 import { ListBusinessesDto } from './dto/list-businesses.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { UpdateBusinessAddressDto } from './dto/update-business-address.dto';
+import { UpdateBusinessDto } from './dto/update-business.dto';
 
 @ApiTags('businesses')
 @Controller('businesses')
@@ -55,10 +58,24 @@ export class BusinessesController {
   @Get('my-business')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Obtener el negocio del usuario actual' })
+  @ApiQuery({ name: 'businessId', required: false, description: 'ID de la tienda específica a obtener (opcional)' })
   @ApiResponse({ status: 200, description: 'Negocio obtenido exitosamente' })
   @ApiResponse({ status: 404, description: 'El usuario no tiene un negocio registrado' })
   @ApiResponse({ status: 401, description: 'No autenticado' })
-  async getMyBusiness(@CurrentUser() user: User) {
+  async getMyBusiness(
+    @CurrentUser() user: User,
+    @Query('businessId') businessId?: string
+  ) {
+    // Si se proporciona un businessId, obtener esa tienda específica
+    if (businessId) {
+      const business = await this.businessesService.findByOwnerId(user.id, businessId);
+      if (!business) {
+        throw new NotFoundException('Tienda no encontrada o no tienes acceso a esta tienda');
+      }
+      return business;
+    }
+    
+    // Si no se proporciona businessId, usar el comportamiento por defecto
     const business = await this.businessesService.findByOwnerId(user.id);
     if (!business) {
       throw new NotFoundException('No tienes un negocio registrado');
@@ -165,6 +182,38 @@ export class BusinessesController {
     @CurrentUser() user: User,
   ) {
     return this.businessesService.updateStatus(id, updateDto);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar información de un negocio' })
+  @ApiParam({ name: 'id', description: 'ID del negocio', type: String })
+  @ApiResponse({ status: 200, description: 'Negocio actualizado exitosamente' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 404, description: 'Negocio no encontrado' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o sin permisos' })
+  async update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateBusinessDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.businessesService.update(id, user.id, updateDto);
+  }
+
+  @Patch(':id/address')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Actualizar dirección de un negocio' })
+  @ApiParam({ name: 'id', description: 'ID del negocio', type: String })
+  @ApiResponse({ status: 200, description: 'Dirección actualizada exitosamente' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 404, description: 'Negocio no encontrado' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o sin permisos' })
+  async updateAddress(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateBusinessAddressDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.businessesService.updateAddress(id, user.id, updateDto);
   }
 }
 

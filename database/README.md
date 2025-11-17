@@ -32,6 +32,13 @@ Los archivos SQL están organizados por orden de creación y propósito. A conti
 **Cuándo ejecutar:** Después de `schema.sql`, si necesitas definir regiones de servicio.  
 **Dependencias:** `schema.sql`
 
+#### 4.1. **`get_location_region.sql`** 🆕
+**Descripción:** Función SQL para identificar en qué zona de cobertura está un punto específico.  
+**Contiene:** Función `core.get_location_region()` que retorna la región (zona) en la que está ubicado un punto, incluyendo el nombre de la zona (ej: "La Roma", "Polanco").  
+**Cuándo ejecutar:** Después de `service_regions.sql`, para habilitar la identificación de zonas.  
+**Dependencias:** `service_regions.sql`  
+**Nota:** Esta función es utilizada por el backend para validar y mostrar la zona específica cuando se selecciona una ubicación en el mapa.
+
 #### 5. **`migration_fix_wallet_types.sql`**
 **Descripción:** Migración para cambiar campos de wallet de UUID a VARCHAR(255).  
 **Contiene:** ALTER TABLE para campos `wallet_*` en múltiples tablas.  
@@ -66,6 +73,19 @@ Los archivos SQL están organizados por orden de creación y propósito. A conti
 **Cuándo ejecutar:** Después de `business_roles_and_multi_store.sql`, para migrar usuarios existentes.  
 **Dependencias:** `business_roles_and_multi_store.sql`  
 **Nota:** Este script está configurado para un usuario específico. Modifica el UUID antes de ejecutar.
+
+#### 8.1. **`migrate_existing_businesses_to_business_users.sql`** 🔧
+**Descripción:** Migración masiva de negocios existentes al sistema de roles.  
+**Contiene:** Asigna rol `superadmin` a todos los `owner_id` de negocios que no tengan registro en `business_users`.  
+**Cuándo ejecutar:** Después de `business_roles_and_multi_store.sql`, si tienes negocios creados antes del sistema de roles.  
+**Dependencias:** `business_roles_and_multi_store.sql`
+
+#### 8.2. **`fix_missing_business_users.sql`** 🔧
+**Descripción:** Corrección rápida para negocios sin registro en `business_users`.  
+**Contiene:** Asigna automáticamente el rol `superadmin` a negocios que existen pero no tienen registro en `business_users`.  
+**Cuándo ejecutar:** Si un negocio existe pero el usuario no lo ve en web-local (404 en `/api/businesses/my-business`).  
+**Dependencias:** `business_roles_and_multi_store.sql`  
+**Nota:** Este script es idempotente y seguro de ejecutar múltiples veces.
 
 #### 9. **`seed_catalog.sql`**
 **Descripción:** Datos de catálogo básicos (categorías globales de ejemplo).  

@@ -28,6 +28,18 @@ export interface Business {
   opening_hours?: any;
   created_at: string;
   updated_at: string;
+  // Campos del sistema de roles
+  user_role?: 'superadmin' | 'admin' | 'operations_staff' | 'kitchen_staff';
+  user_is_active_in_business?: boolean;
+  // Campos de dirección
+  business_address?: string;
+  street?: string;
+  street_number?: string;
+  neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  postal_code?: string;
+  address_country?: string;
 }
 
 export interface CreateBusinessData {
@@ -83,10 +95,15 @@ export interface LocationValidation {
 export const businessService = {
   /**
    * Obtener el negocio del usuario actual
+   * Si se proporciona businessId, obtiene esa tienda específica
    */
-  async getMyBusiness(): Promise<Business | null> {
+  async getMyBusiness(businessId?: string): Promise<Business | null> {
     try {
-      const business = await apiRequest<Business>('/businesses/my-business', {
+      const url = businessId 
+        ? `/businesses/my-business?businessId=${businessId}`
+        : '/businesses/my-business';
+      
+      const business = await apiRequest<Business>(url, {
         method: 'GET',
       });
       return business;
@@ -143,15 +160,54 @@ export const businessService = {
   },
 
   /**
-   * Validar si una ubicación está dentro de la región activa
+   * Validar si una ubicación está dentro de la región activa y obtener la zona específica
    */
-  async validateLocation(longitude: number, latitude: number): Promise<LocationValidation> {
-    return apiRequest<LocationValidation>(
+  async validateLocation(longitude: number, latitude: number): Promise<LocationValidation & { regionName?: string }> {
+    return apiRequest<LocationValidation & { regionName?: string }>(
       `/businesses/validate-location?longitude=${longitude}&latitude=${latitude}`,
       {
         method: 'GET',
       }
     );
+  },
+
+  /**
+   * Actualizar la dirección de un negocio
+   */
+  async updateAddress(businessId: string, addressData: {
+    longitude: number;
+    latitude: number;
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  }): Promise<Business> {
+    return apiRequest<Business>(`/businesses/${businessId}/address`, {
+      method: 'PATCH',
+      body: JSON.stringify(addressData),
+    });
+  },
+
+  /**
+   * Actualizar información básica de un negocio
+   */
+  async updateBusiness(businessId: string, businessData: {
+    name?: string;
+    legal_name?: string;
+    description?: string;
+    category?: string;
+    category_id?: string;
+    phone?: string;
+    email?: string;
+    website_url?: string;
+    tags?: string[];
+  }): Promise<Business> {
+    return apiRequest<Business>(`/businesses/${businessId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(businessData),
+    });
   },
 };
 

@@ -14,10 +14,11 @@ export default function RegisterPage() {
     firstName: '',
     lastName: '',
     phone: '',
-    role: 'local' as 'client' | 'repartidor' | 'local' | 'admin',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   // Si ya está autenticado, redirigir al dashboard
   if (isAuthenticated) {
@@ -43,14 +44,24 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await signUp({
+      const response = await signUp({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
-        role: formData.role,
+        role: 'local', // Siempre 'local' para usuarios que se registran desde el formulario público
       });
+
+      // Verificar si el usuario necesita confirmar su email
+      // Si no hay session, significa que necesita confirmar el email
+      if (!response.session) {
+        setEmailSent(true);
+        setRegisteredEmail(formData.email);
+      } else {
+        // Si hay session, el email ya está confirmado, redirigir al dashboard
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Error al registrar usuario');
     } finally {
@@ -64,6 +75,124 @@ export default function RegisterPage() {
       [e.target.name]: e.target.value,
     });
   };
+
+  // Si el email fue enviado, mostrar mensaje de confirmación
+  if (emailSent) {
+    return (
+      <>
+        <Head>
+          <title>Confirma tu Email - LOCALIA Local</title>
+        </Head>
+
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-md w-full space-y-8">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 mb-4">
+                <svg
+                  className="h-8 w-8 text-indigo-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-extrabold text-gray-900">
+                Confirma tu Email
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Hemos enviado un enlace de confirmación a
+              </p>
+              <p className="mt-1 text-sm font-medium text-indigo-600">
+                {registeredEmail}
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg
+                    className="h-5 w-5 text-blue-400"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Revisa tu bandeja de entrada
+                  </h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>
+                      Por favor, revisa tu correo electrónico y haz clic en el enlace de confirmación
+                      para activar tu cuenta. El enlace expirará en 24 horas.
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <div className="-mx-2 -my-1.5 flex">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmailSent(false);
+                          setRegisteredEmail('');
+                          setFormData({
+                            email: '',
+                            password: '',
+                            confirmPassword: '',
+                            firstName: '',
+                            lastName: '',
+                            phone: '',
+                          });
+                        }}
+                        className="bg-blue-50 px-2 py-1.5 rounded-md text-sm font-medium text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600"
+                      >
+                        Cambiar email
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                ¿No recibiste el correo?{' '}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // TODO: Implementar reenvío de email de confirmación
+                    alert('Funcionalidad de reenvío próximamente');
+                  }}
+                  className="font-medium text-indigo-600 hover:text-indigo-500"
+                >
+                  Reenviar correo
+                </button>
+              </p>
+            </div>
+
+            <div className="text-center">
+              <Link
+                href="/auth/login"
+                className="font-medium text-indigo-600 hover:text-indigo-500"
+              >
+                Volver al inicio de sesión
+              </Link>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

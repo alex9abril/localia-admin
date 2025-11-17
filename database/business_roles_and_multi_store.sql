@@ -5,7 +5,7 @@
 --              múltiples tiendas por cuenta (sucursales o tiendas diferentes)
 -- 
 -- Características:
--- 1. Roles de negocio: superadmin, admin, operativo_aceptador, operativo_cocina
+-- 1. Roles de negocio: superadmin, admin, operations_staff, kitchen_staff
 -- 2. Múltiples tiendas por cuenta: Un usuario puede ser dueño/administrador de varias tiendas
 -- 3. Roles por tienda: Cada usuario puede tener diferentes roles en diferentes tiendas
 -- 
@@ -23,14 +23,26 @@ SET search_path TO core, catalog, orders, reviews, communication, commerce, soci
 -- ============================================================================
 
 -- Rol que un usuario tiene dentro de un negocio específico
-CREATE TYPE business_role AS ENUM (
-    'superadmin',              -- Super Administrador: Ve todo, crea usuarios, acceso completo
-    'admin',                   -- Administrador: Crea productos, modifica precios, crea promociones
-    'operativo_aceptador',     -- Operativo Aceptador: Acepta pedidos, los pone en marcha, hace entregas cuando llega el repartidor
-    'operativo_cocina'         -- Operativo Cocina (opcional): Para órdenes aceptadas, las pone en preparación y luego en preparada
-);
-
-COMMENT ON TYPE business_role IS 'Roles que un usuario puede tener dentro de un negocio específico';
+-- Crear el tipo solo si no existe (idempotente)
+-- IMPORTANTE: Crear el tipo en el schema 'core' explícitamente
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM pg_type t
+        JOIN pg_namespace n ON t.typnamespace = n.oid
+        WHERE n.nspname = 'core' AND t.typname = 'business_role'
+    ) THEN
+        CREATE TYPE core.business_role AS ENUM (
+            'superadmin',              -- Super Administrador: Ve todo, crea usuarios, acceso completo
+            'admin',                   -- Administrador: Crea productos, modifica precios, crea promociones
+            'operations_staff',        -- Operations Staff: Acepta pedidos, los pone en marcha, hace entregas cuando llega el repartidor
+            'kitchen_staff'           -- Kitchen Staff (opcional): Para órdenes aceptadas, las pone en preparación y luego en preparada
+        );
+        
+        COMMENT ON TYPE core.business_role IS 'Roles que un usuario puede tener dentro de un negocio específico';
+    END IF;
+END $$;
 
 -- ============================================================================
 -- TABLA: Relación Usuarios-Negocios (Muchos a Muchos)
@@ -48,7 +60,7 @@ CREATE TABLE IF NOT EXISTS core.business_users (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- Rol del usuario en este negocio específico
-    role business_role NOT NULL DEFAULT 'operativo_aceptador',
+    role business_role NOT NULL DEFAULT 'operations_staff',
     
     -- Permisos específicos (JSONB para flexibilidad futura)
     -- Ejemplo: {"can_edit_prices": true, "can_create_promotions": true}
@@ -92,6 +104,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_business_users_updated_at ON core.business_users;
 CREATE TRIGGER trigger_update_business_users_updated_at
     BEFORE UPDATE ON core.business_users
     FOR EACH ROW
@@ -126,6 +139,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_validate_single_superadmin ON core.business_users;
 CREATE TRIGGER trigger_validate_single_superadmin
     BEFORE INSERT OR UPDATE ON core.business_users
     FOR EACH ROW
@@ -138,7 +152,7 @@ CREATE TRIGGER trigger_validate_single_superadmin
 CREATE OR REPLACE FUNCTION core.user_has_business_role(
     p_user_id UUID,
     p_business_id UUID,
-    p_role business_role
+    p_role core.business_role
 )
 RETURNS BOOLEAN AS $$
 BEGIN
@@ -159,11 +173,12 @@ COMMENT ON FUNCTION core.user_has_business_role IS 'Verifica si un usuario tiene
 -- FUNCIÓN: Obtener todos los negocios de un usuario con sus roles
 -- ============================================================================
 
+DROP FUNCTION IF EXISTS core.get_user_businesses(UUID);
 CREATE OR REPLACE FUNCTION core.get_user_businesses(p_user_id UUID)
 RETURNS TABLE (
     business_id UUID,
     business_name VARCHAR(255),
-    role business_role,
+    role core.business_role,
     is_active BOOLEAN,
     created_at TIMESTAMP
 ) AS $$
@@ -189,13 +204,14 @@ COMMENT ON FUNCTION core.get_user_businesses IS 'Obtiene todos los negocios acti
 -- FUNCIÓN: Obtener todos los usuarios de un negocio con sus roles
 -- ============================================================================
 
+DROP FUNCTION IF EXISTS core.get_business_users(UUID);
 CREATE OR REPLACE FUNCTION core.get_business_users(p_business_id UUID)
 RETURNS TABLE (
     user_id UUID,
     user_email TEXT,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
-    role business_role,
+    role core.business_role,
     is_active BOOLEAN,
     created_at TIMESTAMP
 ) AS $$
@@ -218,8 +234,8 @@ BEGIN
         CASE bu.role
             WHEN 'superadmin' THEN 1
             WHEN 'admin' THEN 2
-            WHEN 'operativo_aceptador' THEN 3
-            WHEN 'operativo_cocina' THEN 4
+            WHEN 'operations_staff' THEN 3
+            WHEN 'kitchen_staff' THEN 4
         END,
         bu.created_at DESC;
 END;
@@ -232,12 +248,14 @@ COMMENT ON FUNCTION core.get_business_users IS 'Obtiene todos los usuarios activ
 -- ============================================================================
 -- Permite al superadmin ver todas sus tiendas para configurarlas
 
+DROP FUNCTION IF EXISTS core.get_superadmin_businesses(UUID);
 CREATE OR REPLACE FUNCTION core.get_superadmin_businesses(p_superadmin_id UUID)
 RETURNS TABLE (
     business_id UUID,
     business_name VARCHAR(255),
     business_email VARCHAR(255),
     business_phone VARCHAR(20),
+    business_address TEXT,
     is_active BOOLEAN,
     total_users INTEGER,
     created_at TIMESTAMP
@@ -249,15 +267,31 @@ BEGIN
         b.name,
         b.email,
         b.phone,
+        COALESCE(
+            TRIM(
+                CONCAT_WS(', ',
+                    NULLIF(TRIM(CONCAT_WS(' ', 
+                        NULLIF(a.street, ''), 
+                        NULLIF(a.street_number, '')
+                    )), ''),
+                    NULLIF(TRIM(a.neighborhood), ''),
+                    NULLIF(TRIM(a.city), ''),
+                    NULLIF(TRIM(a.state), '')
+                )
+            ),
+            'Sin dirección'
+        ) AS business_address,
         b.is_active,
-        COUNT(bu.id) FILTER (WHERE bu.is_active = TRUE)::INTEGER AS total_users,
+        COUNT(DISTINCT bu.id) FILTER (WHERE bu.is_active = TRUE)::INTEGER AS total_users,
         b.created_at
     FROM core.businesses b
     INNER JOIN core.business_users bu ON b.id = bu.business_id
+    LEFT JOIN core.addresses a ON b.address_id = a.id AND a.is_active = TRUE
     WHERE bu.user_id = p_superadmin_id
     AND bu.role = 'superadmin'
     AND bu.is_active = TRUE
-    GROUP BY b.id, b.name, b.email, b.phone, b.is_active, b.created_at
+    GROUP BY b.id, b.name, b.email, b.phone, b.is_active, b.created_at,
+             a.street, a.street_number, a.neighborhood, a.city, a.state
     ORDER BY b.created_at DESC;
 END;
 $$ LANGUAGE plpgsql;
@@ -273,7 +307,7 @@ CREATE OR REPLACE FUNCTION core.assign_user_to_business(
     p_superadmin_id UUID,
     p_business_id UUID,
     p_user_id UUID,
-    p_role business_role,
+    p_role core.business_role,
     p_permissions JSONB DEFAULT '{}'::jsonb
 )
 RETURNS UUID AS $$
@@ -404,7 +438,7 @@ CREATE OR REPLACE FUNCTION core.change_user_role_in_business(
     p_superadmin_id UUID,
     p_business_id UUID,
     p_user_id UUID,
-    p_new_role business_role
+    p_new_role core.business_role
 )
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -456,6 +490,7 @@ COMMENT ON FUNCTION core.change_user_role_in_business IS 'Cambia el rol de un us
 -- ============================================================================
 -- Permite al superadmin ver usuarios que puede asignar a su tienda
 
+DROP FUNCTION IF EXISTS core.get_available_users_for_business(UUID, TEXT);
 CREATE OR REPLACE FUNCTION core.get_available_users_for_business(
     p_business_id UUID,
     p_search_term TEXT DEFAULT NULL
@@ -467,7 +502,7 @@ RETURNS TABLE (
     last_name VARCHAR(100),
     phone VARCHAR(20),
     is_already_assigned BOOLEAN,
-    assigned_role business_role
+    assigned_role core.business_role
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -503,11 +538,12 @@ COMMENT ON FUNCTION core.get_available_users_for_business IS 'Obtiene usuarios d
 -- ============================================================================
 -- Permite ver qué tiendas puede acceder un usuario y con qué roles
 
+DROP FUNCTION IF EXISTS core.get_user_businesses_summary(UUID);
 CREATE OR REPLACE FUNCTION core.get_user_businesses_summary(p_user_id UUID)
 RETURNS TABLE (
     business_id UUID,
     business_name VARCHAR(255),
-    role business_role,
+    role core.business_role,
     permissions JSONB,
     is_active BOOLEAN,
     can_access BOOLEAN,
@@ -538,7 +574,35 @@ COMMENT ON FUNCTION core.get_user_businesses_summary IS 'Obtiene un resumen de t
 -- VISTA: Negocios con información de usuarios y roles
 -- ============================================================================
 
-CREATE OR REPLACE VIEW core.businesses_with_users AS
+-- Renombrar columnas de la vista si existen (antes de recrearla)
+DO $$
+BEGIN
+    -- Renombrar columnas si la vista existe y tiene los nombres antiguos
+    IF EXISTS (SELECT 1 FROM information_schema.views WHERE table_schema = 'core' AND table_name = 'businesses_with_users') THEN
+        -- Verificar si las columnas antiguas existen antes de renombrarlas
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'core' 
+            AND table_name = 'businesses_with_users' 
+            AND column_name = 'total_operativos_aceptadores'
+        ) THEN
+            ALTER VIEW core.businesses_with_users RENAME COLUMN total_operativos_aceptadores TO total_operations_staff;
+        END IF;
+        
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'core' 
+            AND table_name = 'businesses_with_users' 
+            AND column_name = 'total_operativos_cocina'
+        ) THEN
+            ALTER VIEW core.businesses_with_users RENAME COLUMN total_operativos_cocina TO total_kitchen_staff;
+        END IF;
+    END IF;
+END $$;
+
+-- Recrear la vista con los nombres actualizados
+DROP VIEW IF EXISTS core.businesses_with_users;
+CREATE VIEW core.businesses_with_users AS
 SELECT 
     b.id AS business_id,
     b.name AS business_name,
@@ -547,8 +611,8 @@ SELECT
     COUNT(bu.id) FILTER (WHERE bu.is_active = TRUE) AS total_active_users,
     COUNT(bu.id) FILTER (WHERE bu.role = 'superadmin' AND bu.is_active = TRUE) AS total_superadmins,
     COUNT(bu.id) FILTER (WHERE bu.role = 'admin' AND bu.is_active = TRUE) AS total_admins,
-    COUNT(bu.id) FILTER (WHERE bu.role = 'operativo_aceptador' AND bu.is_active = TRUE) AS total_operativos_aceptadores,
-    COUNT(bu.id) FILTER (WHERE bu.role = 'operativo_cocina' AND bu.is_active = TRUE) AS total_operativos_cocina,
+    COUNT(bu.id) FILTER (WHERE bu.role = 'operations_staff' AND bu.is_active = TRUE) AS total_operations_staff,
+    COUNT(bu.id) FILTER (WHERE bu.role = 'kitchen_staff' AND bu.is_active = TRUE) AS total_kitchen_staff,
     b.is_active AS business_is_active,
     b.created_at AS business_created_at
 FROM core.businesses b
@@ -567,6 +631,7 @@ COMMENT ON VIEW core.businesses_with_users IS 'Vista que muestra negocios con es
 DO $$
 DECLARE
     business_record RECORD;
+    existing_superadmin_id UUID;
 BEGIN
     -- Asignar rol superadmin a todos los owners existentes
     FOR business_record IN 
@@ -574,18 +639,57 @@ BEGIN
         FROM core.businesses
         WHERE owner_id IS NOT NULL
     LOOP
-        -- Insertar relación si no existe
-        INSERT INTO core.business_users (business_id, user_id, role, is_active)
-        VALUES (
-            business_record.id,
-            business_record.owner_id,
-            'superadmin',
-            TRUE
-        )
-        ON CONFLICT (business_id, user_id) DO UPDATE SET
-            role = 'superadmin',
-            is_active = TRUE,
-            updated_at = CURRENT_TIMESTAMP;
+        -- Verificar si ya existe un superadmin activo para este negocio
+        SELECT bu.user_id INTO existing_superadmin_id
+        FROM core.business_users bu
+        WHERE bu.business_id = business_record.id
+        AND bu.role = 'superadmin'
+        AND bu.is_active = TRUE
+        LIMIT 1;
+        
+        -- Si ya existe un superadmin y es el mismo owner, solo actualizar
+        IF existing_superadmin_id IS NOT NULL AND existing_superadmin_id = business_record.owner_id THEN
+            -- Ya está asignado como superadmin, solo asegurar que esté activo
+            UPDATE core.business_users
+            SET is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE business_id = business_record.id
+            AND user_id = business_record.owner_id;
+        ELSIF existing_superadmin_id IS NOT NULL AND existing_superadmin_id != business_record.owner_id THEN
+            -- Hay otro superadmin, desactivarlo primero
+            UPDATE core.business_users
+            SET is_active = FALSE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE business_id = business_record.id
+            AND user_id = existing_superadmin_id
+            AND role = 'superadmin';
+            
+            -- Ahora insertar/actualizar el owner como superadmin
+            INSERT INTO core.business_users (business_id, user_id, role, is_active)
+            VALUES (
+                business_record.id,
+                business_record.owner_id,
+                'superadmin',
+                TRUE
+            )
+            ON CONFLICT (business_id, user_id) DO UPDATE SET
+                role = 'superadmin',
+                is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP;
+        ELSE
+            -- No hay superadmin existente, insertar normalmente
+            INSERT INTO core.business_users (business_id, user_id, role, is_active)
+            VALUES (
+                business_record.id,
+                business_record.owner_id,
+                'superadmin',
+                TRUE
+            )
+            ON CONFLICT (business_id, user_id) DO UPDATE SET
+                role = 'superadmin',
+                is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP;
+        END IF;
     END LOOP;
     
     RAISE NOTICE '✅ Migración completada: Todos los owners existentes ahora tienen rol superadmin';
@@ -646,7 +750,7 @@ SELECT core.change_user_role_in_business(
     'superadmin-user-uuid',  -- ID del superadmin
     'business-uuid',          -- ID de la tienda
     'user-uuid',             -- ID del usuario
-    'operativo_aceptador'    -- Nuevo rol
+    'operations_staff'    -- Nuevo rol
 );
 
 -- 8. Remover un usuario de una tienda (solo superadmin)
@@ -688,10 +792,10 @@ UPDATE core.business_users
 SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
 WHERE business_id = 'business-uuid' AND user_id = 'user-uuid';
 
--- 14. Ver todos los usuarios con rol operativo_aceptador en un negocio
+-- 14. Ver todos los usuarios con rol operations_staff en un negocio
 SELECT * FROM core.business_users
 WHERE business_id = 'business-uuid'
-AND role = 'operativo_aceptador'
+AND role = 'operations_staff'
 AND is_active = TRUE;
 */
 

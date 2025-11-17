@@ -1,6 +1,9 @@
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { businessService } from '@/lib/business';
+import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
 
 interface MenuItem {
   name: string;
@@ -8,6 +11,7 @@ interface MenuItem {
   icon: React.ReactNode;
   badge?: string;
   children?: MenuItem[];
+  requiresSuperadmin?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -56,12 +60,39 @@ const menuItems: MenuItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
+    requiresSuperadmin: true,
   },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const { user } = useAuth();
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [checkingRole, setCheckingRole] = useState(true);
+
+  const { selectedBusiness } = useSelectedBusiness();
+
+  useEffect(() => {
+    const checkRole = async () => {
+      if (user) {
+        try {
+          // Usar la tienda seleccionada si está disponible
+          const businessId = selectedBusiness?.business_id;
+          const business = await businessService.getMyBusiness(businessId);
+          setIsSuperadmin(business?.user_role === 'superadmin');
+        } catch (error) {
+          console.error('Error verificando rol en Sidebar:', error);
+          setIsSuperadmin(false);
+        } finally {
+          setCheckingRole(false);
+        }
+      } else {
+        setCheckingRole(false);
+      }
+    };
+
+    checkRole();
+  }, [user, selectedBusiness?.business_id]);
 
   const getUserInitials = () => {
     if (user?.first_name && user?.last_name) {
@@ -87,30 +118,42 @@ export default function Sidebar() {
       {/* Navegación */}
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-3">
-          {menuItems.map((item) => {
-            const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
-            
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-md text-xs font-normal transition-colors ${
-                    isActive
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="flex-1">{item.name}</span>
-                  {item.badge && (
-                    <span className="bg-gray-200 text-gray-700 text-xs font-normal px-2 py-0.5 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              </li>
-            );
-          })}
+          {menuItems
+            .filter((item) => {
+              // Si requiere superadmin y aún estamos verificando, no mostrar
+              if (item.requiresSuperadmin && checkingRole) {
+                return false;
+              }
+              // Si requiere superadmin pero el usuario no lo es, no mostrar
+              if (item.requiresSuperadmin && !isSuperadmin) {
+                return false;
+              }
+              return true;
+            })
+            .map((item) => {
+              const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
+              
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-md text-xs font-normal transition-colors ${
+                      isActive
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {item.icon}
+                    <span className="flex-1">{item.name}</span>
+                    {item.badge && (
+                      <span className="bg-gray-200 text-gray-700 text-xs font-normal px-2 py-0.5 rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
         </ul>
       </nav>
 

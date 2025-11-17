@@ -25,6 +25,7 @@ import { User } from '@supabase/supabase-js';
 import { BusinessUsersService } from './business-users.service';
 import { AssignUserDto } from './dto/assign-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @ApiTags('business-users')
 @Controller('business-users')
@@ -220,6 +221,33 @@ export class BusinessUsersController {
   @ApiResponse({ status: 200, description: 'Resumen obtenido exitosamente' })
   async getSuperadminAccountUsersSummary(@CurrentUser() user: User) {
     return this.businessUsersService.getSuperadminAccountUsersSummary(user.id);
+  }
+
+  @Get('check-email/:email')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Verificar si un email ya está registrado' })
+  @ApiParam({ name: 'email', description: 'Email a verificar' })
+  @ApiResponse({ status: 200, description: 'Verificación exitosa', schema: { type: 'object', properties: { exists: { type: 'boolean' } } } })
+  async checkEmailExists(
+    @Param('email') email: string,
+    @CurrentUser() user: User
+  ) {
+    const exists = await this.businessUsersService.checkEmailExists(email);
+    return { exists };
+  }
+
+  @Post('superadmin/account/create-user')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Crear un nuevo usuario y asignarlo a las tiendas del superadmin' })
+  @ApiResponse({ status: 201, description: 'Usuario creado y asignado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({ status: 403, description: 'No autorizado' })
+  @ApiResponse({ status: 409, description: 'El email ya está registrado' })
+  async createUserForSuperadminAccount(
+    @Body() createUserDto: CreateUserDto,
+    @CurrentUser() user: User
+  ) {
+    return this.businessUsersService.createUserForSuperadminAccount(user.id, createUserDto);
   }
 }
 

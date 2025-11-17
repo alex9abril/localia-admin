@@ -547,13 +547,21 @@ export default function LocationMapPicker({
 
   const validateAndUpdateLocation = async (lng: number, lat: number) => {
     try {
-      // Validar con el backend
+      // Validar con el backend para obtener la zona específica
       const validation = await businessService.validateLocation(lng, lat);
       
       setIsValid(validation.isValid);
       
+      // Actualizar el mensaje con el nombre de la zona si está disponible
+      let validationMessage = validation.message || '';
+      if (validation.isValid && validation.regionName) {
+        validationMessage = `✅ Ubicación válida - Zona: ${validation.regionName}`;
+      } else if (!validation.isValid) {
+        validationMessage = '❌ La ubicación está fuera de todas las zonas de cobertura activas';
+      }
+      
       if (onValidationChange) {
-        onValidationChange(validation.isValid, validation.message);
+        onValidationChange(validation.isValid, validationMessage);
       }
 
       // Verificar si el geocoding está deshabilitado en modo desarrollo

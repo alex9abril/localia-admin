@@ -276,12 +276,16 @@ export class AuthService {
     if (dbPool) {
       console.log('✅ Creando perfil en core.user_profiles...');
       try {
+        // Los usuarios que se registran desde el formulario público siempre tienen rol 'local'
+        // El rol de negocio (superadmin, admin, etc.) se asigna después cuando crean o se les asigna un negocio
+        const platformRole = signUpDto.role === 'local' ? 'local' : (signUpDto.role || 'local');
+        
         await dbPool.query(
           `INSERT INTO core.user_profiles (id, role, first_name, last_name, phone, phone_verified, is_active)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             authData.user.id,
-            signUpDto.role || 'client',
+            platformRole, // Siempre 'local' para usuarios que se registran desde el formulario público
             signUpDto.firstName,
             signUpDto.lastName,
             signUpDto.phone,
@@ -299,10 +303,19 @@ export class AuthService {
       console.warn('⚠️  dbPool no está disponible, no se creará perfil en core.user_profiles');
     }
 
+    // Determinar si el usuario necesita confirmar su email
+    // Si no hay session, significa que Supabase requiere confirmación de email
+    const needsEmailConfirmation = !authData.session;
+
     return {
       user: authData.user,
       session: authData.session,
-      message: 'Usuario registrado exitosamente. Verifica tu email para confirmar tu cuenta.',
+      accessToken: authData.session?.access_token || null,
+      refreshToken: authData.session?.refresh_token || null,
+      message: needsEmailConfirmation
+        ? 'Usuario registrado exitosamente. Por favor, verifica tu email para confirmar tu cuenta.'
+        : 'Usuario registrado exitosamente.',
+      needsEmailConfirmation,
     };
   }
 

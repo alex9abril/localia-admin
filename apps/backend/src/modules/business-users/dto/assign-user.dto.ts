@@ -4,8 +4,8 @@ import { ApiProperty } from '@nestjs/swagger';
 export enum BusinessRole {
   SUPERADMIN = 'superadmin',
   ADMIN = 'admin',
-  OPERATIVO_ACEPTADOR = 'operativo_aceptador',
-  OPERATIVO_COCINA = 'operativo_cocina',
+  OPERATIONS_STAFF = 'operations_staff',
+  KITCHEN_STAFF = 'kitchen_staff',
 }
 
 export class AssignUserDto {

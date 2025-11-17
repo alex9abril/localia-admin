@@ -177,18 +177,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response: AuthResponse = await authService.signUp(data);
       
-      setToken(response.accessToken);
-      setUser(response.user);
-      
-      // Guardar en sessionStorage
-      setAuthToken(response.accessToken);
-      if (response.refreshToken) {
-        setRefreshToken(response.refreshToken);
+      // Solo guardar sesión si el usuario ya confirmó su email (tiene session)
+      if (response.session && response.accessToken) {
+        setToken(response.accessToken);
+        setUser(response.user);
+        
+        // Guardar en localStorage
+        setAuthToken(response.accessToken);
+        if (response.refreshToken) {
+          setRefreshToken(response.refreshToken);
+        }
+        setUserInStorage(response.user);
+        
+        // Redirigir al dashboard solo si el email ya está confirmado
+        router.push('/dashboard');
       }
-      setUserInStorage(response.user);
       
-      // Redirigir al dashboard
-      router.push('/dashboard');
+      // Retornar la respuesta para que el componente pueda manejar el caso de email no confirmado
+      return response;
     } catch (error: any) {
       throw error;
     }

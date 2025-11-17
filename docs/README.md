@@ -117,6 +117,22 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 - Funciones SQL para gestión de usuarios y permisos
 - Flujos de trabajo y casos de uso
 
+### 19. [Gestión de Zonas de Cobertura](./19-gestion-zonas-cobertura.md)
+- Conceptos de zonas de cobertura (service regions)
+- Herramientas para definir polígonos (geojson.io, Google My Maps)
+- Actualización de polígonos en la base de datos
+- Validación de ubicaciones dentro de zonas
+- Scripts SQL disponibles y casos de uso
+
+### 20. [Sistema de Catálogos de Productos Avanzado](./20-sistema-catalogos-productos-avanzado.md)
+- Investigación de prácticas de plataformas de delivery (Uber Eats, Rappi, DoorDash)
+- Identificación de tipo de producto (alimento vs. no alimento)
+- Sistema de modificadores y complementos (obligatorios/opcionales con costos extras)
+- Mejora de paquetes y combinaciones (cantidades fraccionarias, price_override)
+- Sistema de sugerencias y cross-selling (categoría → categoría, producto → producto)
+- Productos de farmacia con restricciones especiales
+- Propuesta de implementación con cambios en base de datos, backend y frontend
+
 ## 🗺️ Navegación
 
 Cada documento incluye enlaces de navegación al final para moverse entre secciones:

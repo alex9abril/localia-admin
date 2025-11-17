@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiRequest } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -16,6 +16,8 @@ interface Category {
   created_at: string;
   updated_at: string;
   total_products: number;
+  children?: Category[];
+  level?: number;
 }
 
 interface CategoriesResponse {
@@ -65,6 +67,9 @@ export default function CategoriesManager() {
   });
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
+  const [hasInitializedTree, setHasInitializedTree] = useState(false);
 
   // Cargar negocios para el selector
   useEffect(() => {
@@ -89,56 +94,168 @@ export default function CategoriesManager() {
 
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        params.append('page', filters.page.toString());
-        params.append('limit', filters.limit.toString());
-        if (filters.businessId) {
-          params.append('businessId', filters.businessId);
-        }
-        if (filters.globalOnly) {
-          params.append('globalOnly', 'true');
-        }
-        if (filters.isActive !== undefined) {
-          params.append('isActive', filters.isActive.toString());
-        }
-        if (filters.search) {
-          params.append('search', filters.search);
-        }
+        if (viewMode === 'tree') {
+          // Para vista de árbol, cargar todas las categorías haciendo múltiples peticiones
+          const allCategories: Category[] = [];
+          let currentPage = 1;
+          let hasMore = true;
+          const pageSize = 100; // Límite máximo del backend
 
-        const response = await apiRequest<CategoriesResponse>(
-          `/catalog/categories?${params.toString()}`,
-          { method: 'GET' }
-        );
+          while (hasMore) {
+            const params = new URLSearchParams();
+            params.append('page', currentPage.toString());
+            params.append('limit', pageSize.toString());
+            if (filters.businessId) {
+              params.append('businessId', filters.businessId);
+            }
+            if (filters.globalOnly) {
+              params.append('globalOnly', 'true');
+            }
+            if (filters.isActive !== undefined) {
+              params.append('isActive', filters.isActive.toString());
+            }
+            if (filters.search) {
+              params.append('search', filters.search);
+            }
 
-        setCategories(response.data);
-        setPagination(response.pagination);
+            const response = await apiRequest<CategoriesResponse>(
+              `/catalog/categories?${params.toString()}`,
+              { method: 'GET' }
+            );
+
+            allCategories.push(...response.data);
+
+            // Verificar si hay más páginas
+            if (response.data.length < pageSize || currentPage >= (response.pagination?.totalPages || 1)) {
+              hasMore = false;
+            } else {
+              currentPage++;
+            }
+          }
+
+          setCategories(allCategories);
+        } else {
+          // Para vista de lista, usar paginación normal
+          const params = new URLSearchParams();
+          params.append('page', filters.page.toString());
+          params.append('limit', filters.limit.toString());
+          if (filters.businessId) {
+            params.append('businessId', filters.businessId);
+          }
+          if (filters.globalOnly) {
+            params.append('globalOnly', 'true');
+          }
+          if (filters.isActive !== undefined) {
+            params.append('isActive', filters.isActive.toString());
+          }
+          if (filters.search) {
+            params.append('search', filters.search);
+          }
+
+          const response = await apiRequest<CategoriesResponse>(
+            `/catalog/categories?${params.toString()}`,
+            { method: 'GET' }
+          );
+
+          setCategories(response.data);
+          setPagination(response.pagination);
+        }
       } catch (error) {
         console.error('Error cargando categorías:', error);
+        setCategories([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadCategories();
-  }, [token, filters]);
+  }, [token, filters, viewMode]);
 
-  // Cargar categorías padre para el selector
-  const [parentCategories, setParentCategories] = useState<Category[]>([]);
-  useEffect(() => {
-    const loadParentCategories = async () => {
-      if (!token) return;
-      try {
-        const response = await apiRequest<CategoriesResponse>(
-          `/catalog/categories?limit=100&isActive=true`,
-          { method: 'GET' }
-        );
-        setParentCategories(response.data || []);
-      } catch (error) {
-        console.error('Error cargando categorías padre:', error);
-      }
+  // Usar el árbol de categorías para el selector de categoría padre
+  // No necesitamos cargar por separado, usamos categoryTree
+
+  // Construir árbol de categorías
+  const categoryTree = useMemo(() => {
+    const buildTree = (categories: Category[], parentId: string | null = null, level: number = 0): Category[] => {
+      return categories
+        .filter(cat => {
+          if (parentId === null) {
+            return !cat.parent_category_id;
+          }
+          return cat.parent_category_id === parentId;
+        })
+        .sort((a, b) => a.display_order - b.display_order)
+        .map(cat => ({
+          ...cat,
+          level,
+          children: buildTree(categories, cat.id, level + 1),
+        }));
     };
-    loadParentCategories();
-  }, [token]);
+
+    return buildTree(categories);
+  }, [categories]);
+
+  // Expandir automáticamente las categorías raíz cuando se carga en modo árbol
+  useEffect(() => {
+    if (viewMode === 'tree' && categoryTree.length > 0 && !hasInitializedTree) {
+      // Expandir solo las categorías raíz inicialmente cuando se carga el árbol
+      const rootIds = new Set(categoryTree.map(cat => cat.id));
+      setExpandedCategories(rootIds);
+      setHasInitializedTree(true);
+    } else if (viewMode === 'list') {
+      // Resetear cuando cambias a lista
+      setHasInitializedTree(false);
+    }
+  }, [viewMode, categoryTree.length, hasInitializedTree]);
+
+  // Obtener todas las categorías aplanadas del árbol (para mostrar)
+  const flattenedTree = useMemo(() => {
+    if (viewMode !== 'tree' || categoryTree.length === 0) {
+      return [];
+    }
+    
+    const flatten = (nodes: Category[]): Category[] => {
+      const result: Category[] = [];
+      nodes.forEach(node => {
+        result.push(node);
+        if (expandedCategories.has(node.id) && node.children && node.children.length > 0) {
+          result.push(...flatten(node.children));
+        }
+      });
+      return result;
+    };
+    return flatten(categoryTree);
+  }, [categoryTree, expandedCategories, viewMode]);
+
+  const toggleExpand = (categoryId: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAll = () => {
+    const allIds = new Set<string>();
+    const collectIds = (nodes: Category[]) => {
+      nodes.forEach(node => {
+        if (node.children && node.children.length > 0) {
+          allIds.add(node.id);
+          collectIds(node.children);
+        }
+      });
+    };
+    collectIds(categoryTree);
+    setExpandedCategories(allIds);
+  };
+
+  const collapseAll = () => {
+    setExpandedCategories(new Set());
+  };
 
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev) => ({
@@ -272,8 +389,8 @@ export default function CategoriesManager() {
   return (
     <div className="space-y-4">
       {/* Filtros y acciones */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2 flex-1">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-2 flex-1 flex-wrap">
           <input
             type="text"
             placeholder="Buscar categorías..."
@@ -321,13 +438,57 @@ export default function CategoriesManager() {
             <option value="true">Activas</option>
             <option value="false">Inactivas</option>
           </select>
+          {viewMode === 'tree' && (
+            <>
+              <button
+                onClick={expandAll}
+                className="px-3 py-2 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                title="Expandir todo"
+              >
+                Expandir
+              </button>
+              <button
+                onClick={collapseAll}
+                className="px-3 py-2 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                title="Colapsar todo"
+              >
+                Colapsar
+              </button>
+            </>
+          )}
         </div>
-        <button
-          onClick={handleNewCategory}
-          className="px-4 py-2 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-        >
-          + Nueva Categoría
-        </button>
+        <div className="flex gap-2">
+          <div className="flex border border-gray-300 rounded overflow-hidden">
+            <button
+              onClick={() => setViewMode('tree')}
+              className={`px-3 py-2 text-xs transition-colors ${
+                viewMode === 'tree'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Vista de árbol"
+            >
+              Árbol
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-2 text-xs transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Vista de lista"
+            >
+              Lista
+            </button>
+          </div>
+          <button
+            onClick={handleNewCategory}
+            className="px-4 py-2 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+          >
+            + Nueva Categoría
+          </button>
+        </div>
       </div>
 
       {/* Lista de categorías */}
@@ -339,6 +500,121 @@ export default function CategoriesManager() {
         <div className="text-center py-12">
           <p className="text-xs text-gray-500">No se encontraron categorías</p>
         </div>
+      ) : viewMode === 'tree' ? (
+        flattenedTree.length > 0 ? (
+          <div className="space-y-1">
+            {flattenedTree.map((category) => {
+            const hasChildren = category.children && category.children.length > 0;
+            const isExpanded = expandedCategories.has(category.id);
+            const indentLevel = (category.level || 0) * 24;
+
+            return (
+              <div
+                key={category.id}
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedCategory?.id === category.id
+                    ? 'bg-indigo-50 border-indigo-200'
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+                onClick={() => handleSelectCategory(category)}
+                style={{ marginLeft: `${indentLevel}px` }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Botón expandir/colapsar */}
+                    <div className="flex-shrink-0 w-6">
+                      {hasChildren ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpand(category.id);
+                          }}
+                          className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="w-5 h-5" />
+                      )}
+                    </div>
+
+                    {/* Icono de categoría */}
+                    {category.icon_url ? (
+                      <img src={category.icon_url} alt={category.name} className="w-8 h-8 rounded flex-shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* Información de la categoría */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-normal text-gray-900 truncate">{category.name}</p>
+                        {category.level && category.level > 0 && (
+                          <span className="text-xs text-gray-400 flex-shrink-0">
+                            (Nivel {category.level + 1})
+                          </span>
+                        )}
+                      </div>
+                      {category.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{category.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        {category.business_name ? (
+                          <span className="text-xs text-gray-400">{category.business_name}</span>
+                        ) : (
+                          <span className="text-xs text-indigo-600">Global</span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {category.total_products} producto(s)
+                        </span>
+                        {hasChildren && (
+                          <span className="text-xs text-gray-400">
+                            {category.children?.length} subcategoría(s)
+                          </span>
+                        )}
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded ${
+                            category.is_active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {category.is_active ? 'Activa' : 'Inactiva'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(category.id);
+                    }}
+                    className="ml-2 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                  >
+                    Desactivar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-xs text-gray-500">No se encontraron categorías para mostrar en el árbol</p>
+          </div>
+        )
       ) : (
         <div className="space-y-2">
           {categories.map((category) => (
@@ -410,8 +686,8 @@ export default function CategoriesManager() {
         </div>
       )}
 
-      {/* Paginación */}
-      {pagination.totalPages > 1 && (
+      {/* Paginación - Solo en vista de lista */}
+      {viewMode === 'list' && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between pt-4 border-t border-gray-200">
           <p className="text-xs text-gray-500">
             Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
@@ -513,15 +789,33 @@ export default function CategoriesManager() {
                   onChange={(e) => setFormData({ ...formData, parent_category_id: e.target.value })}
                   className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 >
-                  <option value="">Sin categoría padre</option>
-                  {parentCategories
-                    .filter((cat) => cat.id !== selectedCategory?.id)
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name} {category.business_name ? `(${category.business_name})` : '(Global)'}
-                      </option>
-                    ))}
+                  <option value="">Sin categoría padre (Categoría raíz)</option>
+                  {(() => {
+                    // Construir opciones con jerarquía visual
+                    const buildOptions = (nodes: Category[], prefix: string = ''): JSX.Element[] => {
+                      const options: JSX.Element[] = [];
+                      nodes.forEach(category => {
+                        if (category.id !== selectedCategory?.id) {
+                          const displayName = `${prefix}${category.name} ${category.business_name ? `(${category.business_name})` : '(Global)'}`;
+                          options.push(
+                            <option key={category.id} value={category.id}>
+                              {displayName}
+                            </option>
+                          );
+                          // Agregar hijos recursivamente
+                          if (category.children && category.children.length > 0) {
+                            options.push(...buildOptions(category.children, prefix + '  └─ '));
+                          }
+                        }
+                      });
+                      return options;
+                    };
+                    return buildOptions(categoryTree);
+                  })()}
                 </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  Selecciona una categoría padre para crear una subcategoría
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

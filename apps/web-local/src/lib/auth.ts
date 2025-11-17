@@ -25,12 +25,14 @@ export interface AuthResponse {
     email: string;
     profile?: any;
   };
-  session: {
+  session?: {
     access_token: string;
     refresh_token: string;
-  };
-  accessToken: string;
-  refreshToken: string;
+  } | null;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  message?: string;
+  needsEmailConfirmation?: boolean;
 }
 
 export interface PasswordResetRequest {

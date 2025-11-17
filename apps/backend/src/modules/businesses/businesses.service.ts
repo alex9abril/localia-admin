@@ -9,6 +9,8 @@ import { dbPool } from '../../config/database.config';
 import { ListBusinessesDto } from './dto/list-businesses.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { UpdateBusinessAddressDto } from './dto/update-business-address.dto';
+import { UpdateBusinessDto } from './dto/update-business.dto';
 
 @Injectable()
 export class BusinessesService {
@@ -396,6 +398,341 @@ export class BusinessesService {
   }
 
   /**
+   * Actualizar información básica de un negocio
+   */
+  async update(id: string, ownerId: string, updateDto: UpdateBusinessDto) {
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
+    }
+
+    const pool = dbPool;
+
+    // Verificar que el negocio existe y pertenece al usuario
+    const business = await this.findOne(id);
+    if (!business) {
+      throw new NotFoundException(`Negocio con ID ${id} no encontrado`);
+    }
+
+    // Verificar que el usuario tiene permisos (es superadmin del negocio)
+    const businessUserCheck = await pool.query(
+      `SELECT role FROM core.business_users 
+       WHERE business_id = $1 AND user_id = $2 AND is_active = TRUE`,
+      [id, ownerId]
+    );
+
+    if (businessUserCheck.rows.length === 0 || businessUserCheck.rows[0].role !== 'superadmin') {
+      throw new BadRequestException('No tienes permisos para actualizar este negocio');
+    }
+
+    // Resolver category_id si se proporciona category (nombre)
+    let categoryId: string | null = null;
+    if (updateDto.category_id) {
+      const categoryCheck = await pool.query(
+        'SELECT id FROM core.business_categories WHERE id = $1 AND is_active = true',
+        [updateDto.category_id]
+      );
+      if (categoryCheck.rows.length === 0) {
+        throw new BadRequestException('La categoría especificada no existe o está inactiva');
+      }
+      categoryId = updateDto.category_id;
+    } else if (updateDto.category) {
+      const categoryCheck = await pool.query(
+        'SELECT id FROM core.business_categories WHERE name = $1 AND is_active = true',
+        [updateDto.category]
+      );
+      if (categoryCheck.rows.length > 0) {
+        categoryId = categoryCheck.rows[0].id;
+      }
+    }
+
+    // Preparar tags - asegurar que sea un array válido o null
+    const tagsArray = Array.isArray(updateDto.tags) && updateDto.tags.length > 0 
+      ? updateDto.tags 
+      : null;
+
+    // Construir la consulta UPDATE dinámicamente
+    const updateFields: string[] = [];
+    const updateValues: any[] = [];
+    let paramIndex = 1;
+
+    if (updateDto.name !== undefined) {
+      updateFields.push(`name = $${paramIndex++}`);
+      updateValues.push(updateDto.name);
+    }
+    if (updateDto.legal_name !== undefined) {
+      updateFields.push(`legal_name = $${paramIndex++}`);
+      updateValues.push(updateDto.legal_name || null);
+    }
+    if (updateDto.description !== undefined) {
+      updateFields.push(`description = $${paramIndex++}`);
+      updateValues.push(updateDto.description || null);
+    }
+    if (updateDto.category !== undefined) {
+      updateFields.push(`category = $${paramIndex++}`);
+      updateValues.push(updateDto.category);
+    }
+    if (categoryId !== null) {
+      updateFields.push(`category_id = $${paramIndex++}`);
+      updateValues.push(categoryId);
+    } else if (updateDto.category_id === null) {
+      // Permitir limpiar category_id
+      updateFields.push(`category_id = NULL`);
+    }
+    if (updateDto.tags !== undefined) {
+      updateFields.push(`tags = $${paramIndex++}`);
+      updateValues.push(tagsArray);
+    }
+    if (updateDto.phone !== undefined) {
+      updateFields.push(`phone = $${paramIndex++}`);
+      updateValues.push(updateDto.phone || null);
+    }
+    if (updateDto.email !== undefined) {
+      updateFields.push(`email = $${paramIndex++}`);
+      updateValues.push(updateDto.email || null);
+    }
+    if (updateDto.website_url !== undefined) {
+      updateFields.push(`website_url = $${paramIndex++}`);
+      updateValues.push(updateDto.website_url || null);
+    }
+
+    if (updateFields.length === 0) {
+      throw new BadRequestException('No se proporcionaron campos para actualizar');
+    }
+
+    // Agregar updated_at
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    updateValues.push(id);
+
+    const updateQuery = `
+      UPDATE core.businesses 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await pool.query(updateQuery, updateValues);
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`Negocio con ID ${id} no encontrado`);
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Actualizar la dirección de un negocio
+   */
+  async updateAddress(id: string, ownerId: string, updateDto: UpdateBusinessAddressDto) {
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
+    }
+
+    const pool = dbPool;
+
+    // Verificar que el negocio existe y pertenece al usuario
+    const business = await this.findOne(id);
+    if (!business) {
+      throw new NotFoundException(`Negocio con ID ${id} no encontrado`);
+    }
+
+    // Verificar que el usuario tiene permisos (es superadmin del negocio)
+    const businessUserCheck = await pool.query(
+      `SELECT role FROM core.business_users 
+       WHERE business_id = $1 AND user_id = $2 AND is_active = TRUE`,
+      [id, ownerId]
+    );
+
+    if (businessUserCheck.rows.length === 0 || businessUserCheck.rows[0].role !== 'superadmin') {
+      throw new BadRequestException('No tienes permisos para actualizar la dirección de este negocio');
+    }
+
+    // Validar que la nueva ubicación está dentro de una zona de cobertura activa
+    const locationValidation = await this.validateLocationInRegion(
+      updateDto.longitude,
+      updateDto.latitude
+    );
+
+    if (!locationValidation.isValid) {
+      throw new BadRequestException(
+        locationValidation.message || 
+        'La nueva ubicación está fuera de todas las zonas de cobertura activas. Por favor, selecciona una ubicación dentro de una zona de cobertura.'
+      );
+    }
+
+    // Dividir address_line1 en street y street_number si es posible
+    let street = updateDto.address_line1 || null;
+    let streetNumber = null;
+    
+    if (street) {
+      const numberMatch = street.match(/(.+?)\s+(\d+)$/);
+      if (numberMatch) {
+        street = numberMatch[1].trim();
+        streetNumber = numberMatch[2];
+      }
+    }
+
+    // Si el negocio ya tiene una dirección, actualizarla; si no, crear una nueva
+    let addressId: string | null = business.address_id || null;
+
+    if (addressId) {
+      // Actualizar dirección existente
+      await pool.query(
+        `UPDATE core.addresses 
+         SET 
+           street = $1,
+           street_number = $2,
+           neighborhood = $3,
+           city = $4,
+           state = $5,
+           postal_code = $6,
+           country = $7,
+           location = ST_MakePoint($8, $9)::point,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $10`,
+        [
+          street,
+          streetNumber,
+          updateDto.address_line2 || null,
+          updateDto.city || null,
+          updateDto.state || null,
+          updateDto.postal_code || null,
+          updateDto.country || 'México',
+          updateDto.longitude,
+          updateDto.latitude,
+          addressId,
+        ]
+      );
+    } else {
+      // Crear nueva dirección
+      const addressResult = await pool.query(
+        `INSERT INTO core.addresses (
+          user_id, label, street, street_number, neighborhood, 
+          city, state, postal_code, country, location, is_default, is_active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_MakePoint($10, $11)::point, $12, $13)
+        RETURNING id`,
+        [
+          ownerId,
+          'Local',
+          street,
+          streetNumber,
+          updateDto.address_line2 || null,
+          updateDto.city || null,
+          updateDto.state || null,
+          updateDto.postal_code || null,
+          updateDto.country || 'México',
+          updateDto.longitude,
+          updateDto.latitude,
+          true,
+          true,
+        ]
+      );
+      addressId = addressResult.rows[0]?.id || null;
+    }
+
+    // Log de diagnóstico antes de actualizar
+    console.log('[BusinessesService.updateAddress] Actualizando coordenadas:', {
+      business_id: id,
+      input_longitude: updateDto.longitude,
+      input_latitude: updateDto.latitude,
+    });
+
+    // Actualizar el negocio con la nueva ubicación y address_id
+    // También obtener la dirección formateada con un JOIN
+    const businessResult = await pool.query(
+      `UPDATE core.businesses b
+       SET 
+         address_id = $1,
+         location = ST_MakePoint($2, $3)::point,
+         updated_at = CURRENT_TIMESTAMP 
+       WHERE b.id = $4 
+       RETURNING 
+         b.*,
+         (b.location)[0] as longitude,
+         (b.location)[1] as latitude`,
+      [addressId, updateDto.longitude, updateDto.latitude, id]
+    );
+
+    if (businessResult.rows.length === 0) {
+      throw new NotFoundException(`Negocio con ID ${id} no encontrado`);
+    }
+
+    const updatedBusiness = businessResult.rows[0];
+
+    // Obtener la dirección formateada si existe
+    if (addressId) {
+      const addressResult = await pool.query(
+        `SELECT 
+          a.street,
+          a.street_number,
+          a.neighborhood,
+          a.city as address_city,
+          a.state as address_state,
+          a.postal_code,
+          a.country as address_country,
+          CONCAT_WS(', ',
+            NULLIF(CONCAT_WS(' ', a.street, a.street_number), ''),
+            NULLIF(a.neighborhood, ''),
+            NULLIF(a.city, ''),
+            NULLIF(a.state, ''),
+            NULLIF(a.postal_code, '')
+          ) as business_address
+        FROM core.addresses a
+        WHERE a.id = $1`,
+        [addressId]
+      );
+
+      if (addressResult.rows.length > 0) {
+        const addressData = addressResult.rows[0];
+        updatedBusiness.street = addressData.street;
+        updatedBusiness.street_number = addressData.street_number;
+        updatedBusiness.neighborhood = addressData.neighborhood;
+        updatedBusiness.address_city = addressData.address_city;
+        updatedBusiness.address_state = addressData.address_state;
+        updatedBusiness.postal_code = addressData.postal_code;
+        updatedBusiness.address_country = addressData.address_country;
+        updatedBusiness.business_address = addressData.business_address;
+      }
+    }
+
+    // Asegurar que las coordenadas estén extraídas correctamente
+    if (!updatedBusiness.longitude || !updatedBusiness.latitude) {
+      if (updatedBusiness.location) {
+        if (typeof updatedBusiness.location === 'object' && updatedBusiness.location.x !== undefined) {
+          updatedBusiness.longitude = updatedBusiness.location.x;
+          updatedBusiness.latitude = updatedBusiness.location.y;
+        } else if (typeof updatedBusiness.location === 'string') {
+          const match = updatedBusiness.location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
+          if (match) {
+            updatedBusiness.longitude = parseFloat(match[1]);
+            updatedBusiness.latitude = parseFloat(match[2]);
+          }
+        }
+      }
+    }
+
+    // Formatear el objeto location para el frontend
+    if (updatedBusiness.longitude && updatedBusiness.latitude) {
+      updatedBusiness.location = {
+        longitude: updatedBusiness.longitude,
+        latitude: updatedBusiness.latitude,
+      };
+    }
+
+    // Log de diagnóstico después de actualizar
+    console.log('[BusinessesService.updateAddress] Negocio actualizado:', {
+      stored_location: businessResult.rows[0].location,
+      extracted_longitude: updatedBusiness.longitude,
+      extracted_latitude: updatedBusiness.latitude,
+      formatted_location: updatedBusiness.location,
+      business_address: updatedBusiness.business_address,
+      address_id: addressId,
+    });
+
+    return updatedBusiness;
+  }
+
+  /**
    * Crear un nuevo negocio
    */
   async create(ownerId: string, createDto: CreateBusinessDto) {
@@ -407,14 +744,26 @@ export class BusinessesService {
 
     try {
 
-    // Verificar que el usuario no tenga ya un negocio
-    const existingBusiness = await pool.query(
-      'SELECT id FROM core.businesses WHERE owner_id = $1',
+    // Verificar que el usuario no tenga ya un negocio como superadmin
+    // Permitimos múltiples negocios, pero verificamos si ya es superadmin de alguno
+    // (esto se puede cambiar más adelante si queremos permitir múltiples negocios)
+    const existingBusinessUser = await pool.query(
+      `SELECT bu.business_id, b.name 
+       FROM core.business_users bu
+       INNER JOIN core.businesses b ON bu.business_id = b.id
+       WHERE bu.user_id = $1 
+       AND bu.role = 'superadmin' 
+       AND bu.is_active = TRUE`,
       [ownerId]
     );
 
-    if (existingBusiness.rows.length > 0) {
-      throw new BadRequestException('El usuario ya tiene un negocio registrado');
+    // Por ahora, permitimos solo un negocio por usuario (como superadmin)
+    // Esto se puede cambiar más adelante si queremos permitir múltiples negocios
+    if (existingBusinessUser.rows.length > 0) {
+      throw new BadRequestException(
+        `Ya tienes un negocio registrado: ${existingBusinessUser.rows[0].name}. ` +
+        `Por el momento solo se permite un negocio por cuenta.`
+      );
     }
 
     // Validar que la ubicación esté dentro de la región activa
@@ -546,16 +895,67 @@ export class BusinessesService {
 
     const business = businessResult.rows[0];
 
-    // Extraer coordenadas del POINT
-    if (business.location) {
+    // Asignar rol superadmin al usuario que crea el negocio
+    // Esto es necesario para que el sistema de roles funcione correctamente
+    try {
+      await pool.query(
+        `INSERT INTO core.business_users (
+          business_id, 
+          user_id, 
+          role, 
+          permissions, 
+          is_active,
+          created_at,
+          updated_at
+        ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (business_id, user_id) DO UPDATE SET
+          role = 'superadmin',
+          is_active = TRUE,
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          business.id,
+          ownerId,
+          'superadmin',
+          '{}', // JSONB se maneja automáticamente por PostgreSQL
+          true,
+        ]
+      );
+      console.log('[BusinessesService.create] Rol superadmin asignado al usuario:', ownerId);
+    } catch (roleError: any) {
+      console.error('[BusinessesService.create] Error al asignar rol superadmin:', roleError);
+      // No lanzamos error aquí para no bloquear la creación del negocio
+      // El usuario puede ser asignado manualmente después si es necesario
+    }
+
+    // Log de diagnóstico para verificar coordenadas guardadas
+    console.log('[BusinessesService.create] Coordenadas guardadas:', {
+      input_longitude: createDto.longitude,
+      input_latitude: createDto.latitude,
+      stored_location: business.location,
+      extracted_longitude: business.longitude,
+      extracted_latitude: business.latitude,
+      location_type: typeof business.location,
+    });
+
+    // Extraer coordenadas del POINT si no se extrajeron en SQL
+    if (business.location && (!business.longitude || !business.latitude)) {
+      console.log('[BusinessesService.create] Extrayendo coordenadas manualmente...');
       if (typeof business.location === 'object' && business.location.x !== undefined) {
         business.longitude = business.location.x;
         business.latitude = business.location.y;
+        console.log('[BusinessesService.create] Coordenadas extraídas desde objeto:', {
+          longitude: business.longitude,
+          latitude: business.latitude,
+        });
       } else if (typeof business.location === 'string') {
         const match = business.location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
         if (match) {
           business.longitude = parseFloat(match[1]);
           business.latitude = parseFloat(match[2]);
+          console.log('[BusinessesService.create] Coordenadas extraídas desde string:', {
+            longitude: business.longitude,
+            latitude: business.latitude,
+          });
         }
       }
     }
@@ -591,14 +991,64 @@ export class BusinessesService {
   }
 
   /**
-   * Obtener el negocio del usuario actual
+   * Obtener el negocio del usuario actual (basado en business_users, no solo owner_id)
+   * Retorna el negocio y el rol del usuario en ese negocio
+   * @param ownerId - ID del usuario
+   * @param businessId - ID de la tienda específica (opcional). Si se proporciona, retorna esa tienda si el usuario tiene acceso
    */
-  async findByOwnerId(ownerId: string) {
+  async findByOwnerId(ownerId: string, businessId?: string) {
     if (!dbPool) {
       throw new ServiceUnavailableException('Conexión a base de datos no configurada');
     }
 
     const pool = dbPool;
+    
+    // Si se proporciona un businessId específico, obtener esa tienda
+    if (businessId) {
+      const result = await pool.query(
+        `SELECT 
+          b.*,
+          (b.location)[0] as longitude,
+          (b.location)[1] as latitude,
+          bc.name as category_name,
+          bc.description as category_description,
+          bc.icon_url as category_icon_url,
+          bu.role as user_role,
+          bu.is_active as user_is_active_in_business,
+          a.street,
+          a.street_number,
+          a.neighborhood,
+          a.city as address_city,
+          a.state as address_state,
+          a.postal_code,
+          a.country as address_country,
+          CONCAT_WS(', ',
+            NULLIF(CONCAT_WS(' ', a.street, a.street_number), ''),
+            NULLIF(a.neighborhood, ''),
+            NULLIF(a.city, ''),
+            NULLIF(a.state, ''),
+            NULLIF(a.postal_code, '')
+          ) as business_address
+        FROM core.business_users bu
+        INNER JOIN core.businesses b ON bu.business_id = b.id
+        LEFT JOIN core.business_categories bc ON b.category_id = bc.id
+        LEFT JOIN core.addresses a ON b.address_id = a.id
+        WHERE bu.user_id = $1
+        AND bu.business_id = $2
+        AND bu.is_active = TRUE
+        LIMIT 1`,
+        [ownerId, businessId]
+      );
+      
+      if (result.rows.length === 0) {
+        return null;
+      }
+      
+      return result.rows[0];
+    }
+    
+    // Si no se proporciona businessId, buscar el negocio del usuario usando business_users (sistema de roles)
+    // Priorizar superadmin, luego admin, luego otros roles
     const result = await pool.query(
       `SELECT 
         b.*,
@@ -606,10 +1056,38 @@ export class BusinessesService {
         (b.location)[1] as latitude,
         bc.name as category_name,
         bc.description as category_description,
-        bc.icon_url as category_icon_url
-      FROM core.businesses b
+        bc.icon_url as category_icon_url,
+        bu.role as user_role,
+        bu.is_active as user_is_active_in_business,
+        a.street,
+        a.street_number,
+        a.neighborhood,
+        a.city as address_city,
+        a.state as address_state,
+        a.postal_code,
+        a.country as address_country,
+        CONCAT_WS(', ',
+          NULLIF(CONCAT_WS(' ', a.street, a.street_number), ''),
+          NULLIF(a.neighborhood, ''),
+          NULLIF(a.city, ''),
+          NULLIF(a.state, ''),
+          NULLIF(a.postal_code, '')
+        ) as business_address
+      FROM core.business_users bu
+      INNER JOIN core.businesses b ON bu.business_id = b.id
       LEFT JOIN core.business_categories bc ON b.category_id = bc.id
-      WHERE b.owner_id = $1`,
+      LEFT JOIN core.addresses a ON b.address_id = a.id
+      WHERE bu.user_id = $1
+      AND bu.is_active = TRUE
+      ORDER BY 
+        CASE bu.role
+          WHEN 'superadmin' THEN 1
+          WHEN 'admin' THEN 2
+          WHEN 'operations_staff' THEN 3
+          WHEN 'kitchen_staff' THEN 4
+        END,
+        bu.created_at DESC
+      LIMIT 1`,
       [ownerId]
     );
 
@@ -619,19 +1097,52 @@ export class BusinessesService {
 
     const business = result.rows[0];
 
+    // Log de diagnóstico para verificar coordenadas recuperadas
+    console.log('[BusinessesService.findByOwnerId] Coordenadas recuperadas:', {
+      stored_location: business.location,
+      extracted_longitude: business.longitude,
+      extracted_latitude: business.latitude,
+      location_type: typeof business.location,
+    });
+
     // Si no se pudieron extraer las coordenadas en SQL, hacerlo manualmente
-    if (!business.longitude && business.location) {
-      if (typeof business.location === 'object' && business.location.x !== undefined) {
-        business.longitude = business.location.x;
-        business.latitude = business.location.y;
-      } else if (typeof business.location === 'string') {
-        const match = business.location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
-        if (match) {
-          business.longitude = parseFloat(match[1]);
-          business.latitude = parseFloat(match[2]);
+    if (!business.longitude || !business.latitude) {
+      if (business.location) {
+        console.log('[BusinessesService.findByOwnerId] Extrayendo coordenadas manualmente...');
+        if (typeof business.location === 'object' && business.location.x !== undefined) {
+          business.longitude = business.location.x;
+          business.latitude = business.location.y;
+          console.log('[BusinessesService.findByOwnerId] Coordenadas extraídas desde objeto:', {
+            longitude: business.longitude,
+            latitude: business.latitude,
+          });
+        } else if (typeof business.location === 'string') {
+          const match = business.location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
+          if (match) {
+            business.longitude = parseFloat(match[1]);
+            business.latitude = parseFloat(match[2]);
+            console.log('[BusinessesService.findByOwnerId] Coordenadas extraídas desde string:', {
+              longitude: business.longitude,
+              latitude: business.latitude,
+            });
+          }
         }
       }
     }
+
+    // Formatear el objeto location para el frontend (igual que en updateAddress)
+    if (business.longitude && business.latitude) {
+      business.location = {
+        longitude: business.longitude,
+        latitude: business.latitude,
+      };
+    }
+
+    console.log('[BusinessesService.findByOwnerId] Negocio formateado:', {
+      longitude: business.longitude,
+      latitude: business.latitude,
+      formatted_location: business.location,
+    });
 
     return business;
   }
@@ -756,11 +1267,12 @@ export class BusinessesService {
   }
 
   /**
-   * Validar si una ubicación está dentro de la región activa
+   * Validar si una ubicación está dentro de alguna región activa y retornar la región específica
    */
   async validateLocationInRegion(longitude: number, latitude: number): Promise<{
     isValid: boolean;
     region?: any;
+    regionName?: string;
     message?: string;
   }> {
     if (!dbPool) {
@@ -770,45 +1282,64 @@ export class BusinessesService {
     const pool = dbPool;
     
     try {
-      // Obtener la región activa
-      const region = await this.getActiveRegion();
-      
-      if (!region) {
-        return {
-          isValid: false,
-          message: 'No hay región de servicio activa configurada. Por favor ejecuta el script database/service_regions.sql',
-        };
-      }
-
-      // Intentar usar la función SQL si existe
+      // Intentar usar la función get_location_region para obtener la región específica
       try {
-        const validationResult = await pool.query(
-          'SELECT core.is_location_in_region($1, $2) as is_valid',
+        const regionResult = await pool.query(
+          'SELECT * FROM core.get_location_region($1, $2)',
           [longitude, latitude]
         );
 
-        const isValid = validationResult.rows[0]?.is_valid || false;
+        if (regionResult.rows.length > 0) {
+          const regionData = regionResult.rows[0];
+          const isValid = regionData.is_valid === true;
 
-        return {
-          isValid,
-          region: isValid ? region : null,
-          message: isValid 
-            ? 'La ubicación está dentro de la zona de cobertura'
-            : 'La ubicación está fuera de la zona de cobertura activa (La Roma)',
-        };
+          if (isValid && regionData.id) {
+            return {
+              isValid: true,
+              region: {
+                id: regionData.id,
+                name: regionData.name,
+                description: regionData.description,
+                city: regionData.city,
+                state: regionData.state,
+                country: regionData.country,
+                center_longitude: regionData.center_longitude,
+                center_latitude: regionData.center_latitude,
+                max_delivery_radius_meters: regionData.max_delivery_radius_meters,
+                min_order_amount: regionData.min_order_amount,
+                coverage_area_geojson: regionData.coverage_area_geojson,
+              },
+              regionName: regionData.name,
+              message: `La ubicación está dentro de la zona de cobertura: ${regionData.name}`,
+            };
+          } else {
+            return {
+              isValid: false,
+              region: null,
+              regionName: null,
+              message: 'La ubicación está fuera de todas las zonas de cobertura activas',
+            };
+          }
+        }
       } catch (funcError: any) {
-        // Si la función no existe, usar validación directa con PostGIS
+        // Si la función no existe, usar validación con la función anterior
         if (funcError.code === '42883' || funcError.message?.includes('does not exist')) {
-          console.log('⚠️  Función is_location_in_region() no existe, usando validación directa con PostGIS');
+          console.log('⚠️  Función get_location_region() no existe, usando validación con is_location_in_region()');
           
+          // Obtener la región activa por defecto
+          const region = await this.getActiveRegion();
+          
+          if (!region) {
+            return {
+              isValid: false,
+              message: 'No hay región de servicio activa configurada. Por favor ejecuta el script database/service_regions.sql',
+            };
+          }
+
           try {
-            // Validación directa usando ST_Within
-            const point = `ST_SetSRID(ST_MakePoint($1, $2), 4326)`;
             const validationResult = await pool.query(
-              `SELECT ST_Within(${point}, sr.coverage_area) as is_valid
-               FROM core.service_regions sr
-               WHERE sr.id = $3 AND sr.is_active = TRUE`,
-              [longitude, latitude, region.id]
+              'SELECT core.is_location_in_region($1, $2) as is_valid',
+              [longitude, latitude]
             );
 
             const isValid = validationResult.rows[0]?.is_valid || false;
@@ -816,22 +1347,52 @@ export class BusinessesService {
             return {
               isValid,
               region: isValid ? region : null,
+              regionName: isValid ? region.name : null,
               message: isValid 
-                ? 'La ubicación está dentro de la zona de cobertura'
-                : 'La ubicación está fuera de la zona de cobertura activa (La Roma)',
+                ? `La ubicación está dentro de la zona de cobertura: ${region.name}`
+                : `La ubicación está fuera de la zona de cobertura activa (${region.name})`,
             };
-          } catch (postgisError: any) {
-            console.error('❌ Error en validación PostGIS:', {
-              message: postgisError.message,
-              code: postgisError.code,
-            });
+          } catch (innerError: any) {
+            // Si la función is_location_in_region tampoco existe, usar validación directa con PostGIS
+            if (innerError.code === '42883' || innerError.message?.includes('does not exist')) {
+              console.log('⚠️  Función is_location_in_region() no existe, usando validación directa con PostGIS');
+          
+              try {
+                // Validación directa usando ST_Within
+                const point = `ST_SetSRID(ST_MakePoint($1, $2), 4326)`;
+                const validationResult = await pool.query(
+                  `SELECT ST_Within(${point}, sr.coverage_area) as is_valid
+                   FROM core.service_regions sr
+                   WHERE sr.id = $3 AND sr.is_active = TRUE`,
+                  [longitude, latitude, region.id]
+                );
+
+                const isValid = validationResult.rows[0]?.is_valid || false;
+
+                return {
+                  isValid,
+                  region: isValid ? region : null,
+                  regionName: isValid ? region.name : null,
+                  message: isValid 
+                    ? `La ubicación está dentro de la zona de cobertura: ${region.name}`
+                    : `La ubicación está fuera de la zona de cobertura activa (${region.name})`,
+                };
+              } catch (postgisError: any) {
+                console.error('❌ Error en validación PostGIS:', {
+                  message: postgisError.message,
+                  code: postgisError.code,
+                });
+                
+                // Si PostGIS no está disponible, permitir la ubicación pero advertir
+                return {
+                  isValid: true, // Permitir por defecto si no se puede validar
+                  region: region,
+                  message: 'No se pudo validar la ubicación. Asegúrate de que PostGIS esté habilitado.',
+                };
+              }
+            }
             
-            // Si PostGIS no está disponible, permitir la ubicación pero advertir
-            return {
-              isValid: true, // Permitir por defecto si no se puede validar
-              region: region,
-              message: 'No se pudo validar la ubicación. Asegúrate de que PostGIS esté habilitado.',
-            };
+            throw innerError;
           }
         }
         
@@ -853,6 +1414,35 @@ export class BusinessesService {
       }
       
       throw new ServiceUnavailableException(`Error al validar ubicación: ${error.message}`);
+    }
+  }
+
+  /**
+   * Verificar si un usuario tiene acceso a un negocio
+   */
+  async userHasAccessToBusiness(userId: string, businessId: string): Promise<boolean> {
+    if (!dbPool) {
+      return false;
+    }
+
+    const pool = dbPool;
+    
+    try {
+      const result = await pool.query(
+        `SELECT EXISTS(
+          SELECT 1 
+          FROM core.business_users bu
+          WHERE bu.business_id = $1 
+          AND bu.user_id = $2 
+          AND bu.is_active = TRUE
+        ) as has_access`,
+        [businessId, userId]
+      );
+      
+      return result.rows[0]?.has_access || false;
+    } catch (error: any) {
+      console.error('[BusinessesService] Error verificando acceso:', error);
+      return false;
     }
   }
 

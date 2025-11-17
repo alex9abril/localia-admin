@@ -36,6 +36,15 @@ export class ServiceRegionsController {
   async findOne(@Param('id') id: string) {
     return this.serviceRegionsService.findOne(id);
   }
+
+  @Get(':id/businesses')
+  @ApiOperation({ summary: 'Obtener todas las tiendas de una zona' })
+  @ApiParam({ name: 'id', description: 'UUID de la zona', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Lista de tiendas obtenida exitosamente.' })
+  @ApiResponse({ status: 503, description: 'Error al obtener tiendas.' })
+  async getBusinessesByRegion(@Param('id') id: string) {
+    return this.serviceRegionsService.getBusinessesByRegion(id);
+  }
 }
 
 

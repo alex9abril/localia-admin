@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import LocalLayout from '@/components/layout/LocalLayout';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
 import { businessService } from '@/lib/business';
 
 interface ConfigurationCard {
@@ -17,6 +18,7 @@ interface ConfigurationCard {
 export default function SettingsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { selectedBusiness } = useSelectedBusiness();
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
 
@@ -24,27 +26,39 @@ export default function SettingsPage() {
     const checkPermissions = async () => {
       try {
         // Verificar si el usuario tiene un negocio y es superadmin
-        const business = await businessService.getMyBusiness();
-        if (business) {
-          // TODO: Verificar rol de superadmin desde el backend
-          // Por ahora, asumimos que si tiene negocio y es el owner, es superadmin
-          // En el futuro, deberíamos verificar el rol desde business_users
+        // Usar la tienda seleccionada si está disponible
+        const businessId = selectedBusiness?.business_id;
+        const business = await businessService.getMyBusiness(businessId);
+        if (business && business.user_role === 'superadmin') {
           setIsSuperadmin(true);
+        } else {
+          // Si no es superadmin, redirigir a la página principal
+          console.log('[Settings] Usuario no es superadmin, redirigiendo...');
+          router.push('/');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error verificando permisos:', error);
-        setIsSuperadmin(false);
+        // Si hay error (404, etc.), redirigir a la página principal
+        if (error?.statusCode === 404) {
+          console.log('[Settings] Usuario no tiene negocio asignado, redirigiendo...');
+          router.push('/');
+        } else {
+          setIsSuperadmin(false);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
+    if (user && selectedBusiness) {
       checkPermissions();
+    } else if (user && !selectedBusiness) {
+      // Esperar a que se seleccione una tienda
+      setLoading(true);
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, router, selectedBusiness?.business_id]);
 
   const configurationCards: ConfigurationCard[] = [
     // Configuración de Tienda
@@ -108,6 +122,11 @@ export default function SettingsPage() {
         </div>
       </LocalLayout>
     );
+  }
+
+  // Si no es superadmin, no mostrar nada (ya se redirigió en useEffect)
+  if (!isSuperadmin) {
+    return null;
   }
 
   return (

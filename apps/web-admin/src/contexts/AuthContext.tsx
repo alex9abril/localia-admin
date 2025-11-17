@@ -134,6 +134,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Ejecutar inmediatamente
     initializeAuth();
+
+    // Escuchar evento de sesión expirada desde apiRequest
+    const handleSessionExpired = () => {
+      console.log('[Auth] Evento de sesión expirada recibido');
+      setToken(null);
+      setUser(null);
+      clearAuth();
+      // No redirigir aquí, apiRequest ya lo hace
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

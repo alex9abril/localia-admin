@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import { businessService } from '@/lib/business';
+import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
 
 interface UserMenuProps {
   user: any;
@@ -11,6 +13,29 @@ export default function UserMenu({ user }: UserMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const { signOut } = useAuth();
   const router = useRouter();
+  const [businessRole, setBusinessRole] = useState<string | null>(null);
+
+  // Obtener el rol del negocio del usuario
+  const { selectedBusiness } = useSelectedBusiness();
+
+  useEffect(() => {
+    const loadBusinessRole = async () => {
+      if (user) {
+        try {
+          // Usar la tienda seleccionada si está disponible
+          const businessId = selectedBusiness?.business_id;
+          const business = await businessService.getMyBusiness(businessId);
+          if (business?.user_role) {
+            setBusinessRole(business.user_role);
+          }
+        } catch (error) {
+          console.error('Error cargando rol del negocio:', error);
+        }
+      }
+    };
+
+    loadBusinessRole();
+  }, [user, selectedBusiness?.business_id]);
 
   // Cerrar menú al hacer clic fuera
   useEffect(() => {
@@ -50,6 +75,19 @@ export default function UserMenu({ user }: UserMenuProps) {
     return 'Usuario';
   };
 
+  const getBusinessRoleLabel = (role: string | null): string => {
+    if (!role) return 'Sin rol';
+    
+    const roleLabels: Record<string, string> = {
+      superadmin: 'Super Administrador',
+      admin: 'Administrador',
+      operations_staff: 'Operations Staff',
+      kitchen_staff: 'Kitchen Staff',
+    };
+    
+    return roleLabels[role] || role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ');
+  };
+
   return (
     <div className="relative" ref={menuRef}>
       <button
@@ -61,7 +99,7 @@ export default function UserMenu({ user }: UserMenuProps) {
         </div>
         <div className="hidden md:block text-left">
           <div className="text-sm font-medium text-gray-900">{getUserName()}</div>
-          <div className="text-xs text-gray-500 capitalize">{user?.profile?.role || user?.role || 'Local'}</div>
+          <div className="text-xs text-gray-500">{businessRole ? getBusinessRoleLabel(businessRole) : 'Sin rol'}</div>
         </div>
         <svg
           className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}

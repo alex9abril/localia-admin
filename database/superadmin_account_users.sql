@@ -22,6 +22,7 @@ SET search_path TO core, catalog, orders, reviews, communication, commerce, soci
 -- donde el usuario es superadmin. Esto permite al superadmin ver todos
 -- los usuarios relacionados con su cuenta, no solo de una tienda.
 
+DROP FUNCTION IF EXISTS core.get_superadmin_account_users(UUID);
 CREATE OR REPLACE FUNCTION core.get_superadmin_account_users(p_superadmin_id UUID)
 RETURNS TABLE (
     user_id UUID,
@@ -36,11 +37,19 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT
+    SELECT 
         bu.user_id,
         au.email::TEXT,
-        up.first_name,
-        up.last_name,
+        COALESCE(
+            up.first_name,
+            au.raw_user_meta_data->>'first_name',
+            NULL
+        )::VARCHAR(100) AS first_name,
+        COALESCE(
+            up.last_name,
+            au.raw_user_meta_data->>'last_name',
+            NULL
+        )::VARCHAR(100) AS last_name,
         bu.role,
         bu.business_id,
         b.name AS business_name,
@@ -52,23 +61,34 @@ BEGIN
     LEFT JOIN core.user_profiles up ON bu.user_id = up.id
     WHERE bu.business_id IN (
         -- Obtener todas las tiendas donde el usuario es superadmin
-        SELECT business_id
-        FROM core.business_users
-        WHERE user_id = p_superadmin_id
-        AND role = 'superadmin'
-        AND is_active = TRUE
+        SELECT bu2.business_id
+        FROM core.business_users bu2
+        WHERE bu2.user_id = p_superadmin_id
+        AND bu2.role = 'superadmin'
+        AND bu2.is_active = TRUE
     )
     AND bu.is_active = TRUE
     -- Excluir al mismo superadmin
     AND bu.user_id != p_superadmin_id
+    GROUP BY 
+        bu.user_id,
+        au.email,
+        au.raw_user_meta_data,
+        up.first_name,
+        up.last_name,
+        bu.role,
+        bu.business_id,
+        b.name,
+        bu.is_active,
+        bu.created_at
     ORDER BY 
         bu.created_at DESC,
         b.name,
         CASE bu.role
             WHEN 'superadmin' THEN 1
             WHEN 'admin' THEN 2
-            WHEN 'operativo_aceptador' THEN 3
-            WHEN 'operativo_cocina' THEN 4
+            WHEN 'operations_staff' THEN 3
+            WHEN 'kitchen_staff' THEN 4
         END;
 END;
 $$ LANGUAGE plpgsql;
@@ -81,6 +101,7 @@ COMMENT ON FUNCTION core.get_superadmin_account_users IS 'Obtiene todos los usua
 -- Retorna usuarios que pueden ser asignados a cualquiera de las tiendas
 -- del superadmin. Muestra si ya están asignados a alguna de sus tiendas.
 
+DROP FUNCTION IF EXISTS core.get_available_users_for_superadmin_account(UUID, TEXT);
 CREATE OR REPLACE FUNCTION core.get_available_users_for_superadmin_account(
     p_superadmin_id UUID,
     p_search_term TEXT DEFAULT NULL
@@ -93,58 +114,64 @@ RETURNS TABLE (
     phone VARCHAR(20),
     is_already_assigned BOOLEAN,
     assigned_businesses TEXT[],
-    assigned_roles business_role[]
+    assigned_roles core.business_role[]
 ) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
-        au.id,
-        au.email::TEXT,
-        up.first_name,
-        up.last_name,
-        up.phone,
+        au.id::UUID AS user_id,
+        au.email::TEXT AS user_email,
+        up.first_name::VARCHAR(100),
+        up.last_name::VARCHAR(100),
+        COALESCE(up.phone, '')::VARCHAR(20) AS phone,
         -- Verificar si está asignado a alguna tienda del superadmin
         EXISTS (
             SELECT 1
             FROM core.business_users bu
             WHERE bu.user_id = au.id
             AND bu.business_id IN (
-                SELECT business_id
-                FROM core.business_users
-                WHERE user_id = p_superadmin_id
-                AND role = 'superadmin'
-                AND is_active = TRUE
+                SELECT bu2.business_id
+                FROM core.business_users bu2
+                WHERE bu2.user_id = p_superadmin_id
+                AND bu2.role = 'superadmin'
+                AND bu2.is_active = TRUE
             )
             AND bu.is_active = TRUE
         ) AS is_already_assigned,
         -- Lista de tiendas donde ya está asignado
-        ARRAY(
-            SELECT b.name
-            FROM core.business_users bu
-            INNER JOIN core.businesses b ON bu.business_id = b.id
-            WHERE bu.user_id = au.id
-            AND bu.business_id IN (
-                SELECT business_id
-                FROM core.business_users
-                WHERE user_id = p_superadmin_id
-                AND role = 'superadmin'
-                AND is_active = TRUE
-            )
-            AND bu.is_active = TRUE
+        COALESCE(
+            ARRAY(
+                SELECT b.name::TEXT
+                FROM core.business_users bu
+                INNER JOIN core.businesses b ON bu.business_id = b.id
+                WHERE bu.user_id = au.id
+                AND bu.business_id IN (
+                    SELECT bu2.business_id
+                    FROM core.business_users bu2
+                    WHERE bu2.user_id = p_superadmin_id
+                    AND bu2.role = 'superadmin'
+                    AND bu2.is_active = TRUE
+                )
+                AND bu.is_active = TRUE
+            ),
+            ARRAY[]::TEXT[]
         ) AS assigned_businesses,
         -- Lista de roles en las tiendas del superadmin
-        ARRAY(
-            SELECT bu.role
-            FROM core.business_users bu
-            WHERE bu.user_id = au.id
-            AND bu.business_id IN (
-                SELECT business_id
-                FROM core.business_users
-                WHERE user_id = p_superadmin_id
-                AND role = 'superadmin'
-                AND is_active = TRUE
-            )
-            AND bu.is_active = TRUE
+        COALESCE(
+            ARRAY(
+                SELECT bu.role::core.business_role
+                FROM core.business_users bu
+                WHERE bu.user_id = au.id
+                AND bu.business_id IN (
+                    SELECT bu2.business_id
+                    FROM core.business_users bu2
+                    WHERE bu2.user_id = p_superadmin_id
+                    AND bu2.role = 'superadmin'
+                    AND bu2.is_active = TRUE
+                )
+                AND bu.is_active = TRUE
+            ),
+            ARRAY[]::core.business_role[]
         ) AS assigned_roles
     FROM auth.users au
     LEFT JOIN core.user_profiles up ON au.id = up.id
@@ -164,11 +191,11 @@ BEGIN
             FROM core.business_users bu
             WHERE bu.user_id = au.id
             AND bu.business_id IN (
-                SELECT business_id
-                FROM core.business_users
-                WHERE user_id = p_superadmin_id
-                AND role = 'superadmin'
-                AND is_active = TRUE
+                SELECT bu2.business_id
+                FROM core.business_users bu2
+                WHERE bu2.user_id = p_superadmin_id
+                AND bu2.role = 'superadmin'
+                AND bu2.is_active = TRUE
             )
             AND bu.is_active = TRUE
         ) DESC,
@@ -183,6 +210,7 @@ COMMENT ON FUNCTION core.get_available_users_for_superadmin_account IS 'Obtiene 
 -- ============================================================================
 -- Permite al superadmin remover un usuario de TODAS sus tiendas de una vez.
 
+DROP FUNCTION IF EXISTS core.remove_user_from_superadmin_account(UUID, UUID);
 CREATE OR REPLACE FUNCTION core.remove_user_from_superadmin_account(
     p_superadmin_id UUID,
     p_user_id UUID
@@ -213,11 +241,11 @@ BEGIN
         updated_at = CURRENT_TIMESTAMP
     WHERE user_id = p_user_id
     AND business_id IN (
-        SELECT business_id
-        FROM core.business_users
-        WHERE user_id = p_superadmin_id
-        AND role = 'superadmin'
-        AND is_active = TRUE
+        SELECT bu2.business_id
+        FROM core.business_users bu2
+        WHERE bu2.user_id = p_superadmin_id
+        AND bu2.role = 'superadmin'
+        AND bu2.is_active = TRUE
     )
     AND is_active = TRUE;
     
@@ -234,6 +262,7 @@ COMMENT ON FUNCTION core.remove_user_from_superadmin_account IS 'Remueve un usua
 -- ============================================================================
 -- Retorna un resumen agrupado de usuarios por tienda para el superadmin.
 
+DROP FUNCTION IF EXISTS core.get_superadmin_account_users_summary(UUID);
 CREATE OR REPLACE FUNCTION core.get_superadmin_account_users_summary(p_superadmin_id UUID)
 RETURNS TABLE (
     business_id UUID,
@@ -250,8 +279,8 @@ BEGIN
         b.name,
         COUNT(bu.id) FILTER (WHERE bu.is_active = TRUE)::INTEGER AS total_users,
         COUNT(bu.id) FILTER (WHERE bu.role = 'admin' AND bu.is_active = TRUE)::INTEGER AS total_admins,
-        COUNT(bu.id) FILTER (WHERE bu.role = 'operativo_aceptador' AND bu.is_active = TRUE)::INTEGER AS total_operativos_aceptadores,
-        COUNT(bu.id) FILTER (WHERE bu.role = 'operativo_cocina' AND bu.is_active = TRUE)::INTEGER AS total_operativos_cocina
+        COUNT(bu.id) FILTER (WHERE bu.role = 'operations_staff' AND bu.is_active = TRUE)::INTEGER AS total_operations_staff,
+        COUNT(bu.id) FILTER (WHERE bu.role = 'kitchen_staff' AND bu.is_active = TRUE)::INTEGER AS total_kitchen_staff
     FROM core.businesses b
     INNER JOIN core.business_users bu_superadmin ON b.id = bu_superadmin.business_id
     LEFT JOIN core.business_users bu ON b.id = bu.business_id

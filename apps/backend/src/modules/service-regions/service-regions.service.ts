@@ -205,6 +205,81 @@ export class ServiceRegionsService {
       );
     }
   }
+
+  async getBusinessesByRegion(regionId: string) {
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
+    }
+
+    try {
+      // Buscar tiendas que estén dentro del polígono de la zona usando PostGIS
+      // También incluimos tiendas dentro del radio máximo de entrega como fallback
+      // NOTA: ST_MakePoint(longitude, latitude) - el orden es importante
+      const sqlQuery = `
+        SELECT DISTINCT
+          b.id,
+          b.name,
+          b.description,
+          b.category,
+          b.is_active,
+          (b.location)[0]::DOUBLE PRECISION as longitude,
+          (b.location)[1]::DOUBLE PRECISION as latitude
+        FROM core.businesses b
+        CROSS JOIN core.service_regions sr
+        WHERE sr.id = $1
+          AND sr.is_active = TRUE
+          AND b.location IS NOT NULL
+          AND (
+            -- Opción 1: Dentro del polígono de cobertura
+            ST_Within(
+              ST_SetSRID(
+                ST_MakePoint(
+                  (b.location)[0]::DOUBLE PRECISION, 
+                  (b.location)[1]::DOUBLE PRECISION
+                ), 
+                4326
+              ),
+              sr.coverage_area
+            )
+            OR
+            -- Opción 2: Dentro del radio máximo de entrega desde el centro (fallback)
+            ST_DWithin(
+              ST_SetSRID(
+                ST_MakePoint(
+                  (b.location)[0]::DOUBLE PRECISION, 
+                  (b.location)[1]::DOUBLE PRECISION
+                )::geography,
+                4326
+              ),
+              ST_SetSRID(
+                ST_MakePoint(
+                  (sr.center_point)[0]::DOUBLE PRECISION,
+                  (sr.center_point)[1]::DOUBLE PRECISION
+                )::geography,
+                4326
+              ),
+              sr.max_delivery_radius_meters
+            )
+          )
+        ORDER BY b.name ASC
+      `;
+
+      const result = await dbPool.query(sqlQuery, [regionId]);
+      
+      // Log para debugging
+      console.log(`[getBusinessesByRegion] Zona ID: ${regionId}, Tiendas encontradas: ${result.rows.length}`);
+      if (result.rows.length > 0) {
+        console.log('[getBusinessesByRegion] Tiendas:', result.rows.map(r => r.name));
+      }
+      
+      return result.rows;
+    } catch (error: any) {
+      console.error('❌ Error en getBusinessesByRegion:', error);
+      throw new ServiceUnavailableException(
+        `Error al obtener tiendas de la zona: ${error.message}`
+      );
+    }
+  }
 }
 
 

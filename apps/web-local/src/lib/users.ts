@@ -4,7 +4,7 @@
 
 import { apiRequest } from './api';
 
-export type BusinessRole = 'superadmin' | 'admin' | 'operativo_aceptador' | 'operativo_cocina';
+export type BusinessRole = 'superadmin' | 'admin' | 'operations_staff' | 'kitchen_staff';
 
 export interface BusinessUser {
   id: string;
@@ -50,6 +50,7 @@ export const usersService = {
     business_name: string;
     business_email: string;
     business_phone: string;
+    business_address?: string;
     is_active: boolean;
     total_users: number;
     created_at: string;
@@ -168,6 +169,53 @@ export const usersService = {
   }>> {
     return apiRequest(`/business-users/user/${userId}/summary`, {
       method: 'GET',
+    });
+  },
+
+  /**
+   * Verificar si un email ya está registrado
+   */
+  async checkEmailExists(email: string): Promise<boolean> {
+    try {
+      const result = await apiRequest<{ exists: boolean }>(`/business-users/check-email/${encodeURIComponent(email)}`, {
+        method: 'GET',
+      });
+      return result.exists;
+    } catch (error: any) {
+      console.error('Error verificando email:', error);
+      return false; // En caso de error, permitir continuar
+    }
+  },
+
+  /**
+   * Crear un nuevo usuario y asignarlo a las tiendas del superadmin
+   */
+  async createUserForSuperadminAccount(data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    role: BusinessRole;
+    businessIds?: string[];
+  }): Promise<{
+    user: {
+      id: string;
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+    };
+    assignments: Array<{
+      business_id: string;
+      role: BusinessRole;
+    }>;
+    message: string;
+    created_user?: any;
+  }> {
+    return apiRequest('/business-users/superadmin/account/create-user', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };
