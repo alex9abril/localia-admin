@@ -576,7 +576,7 @@ WHERE table_schema = 'core' AND table_name = 'business_users';
 ---
 
 **Anterior:** [Análisis de Tipos de Negocios de Alimentos](./17-analisis-tipos-negocios-alimentos.md)  
-**Siguiente:** [Gestión de Zonas de Cobertura](./19-gestion-zonas-cobertura.md)  
+**Siguiente:** [Volver al inicio](./README.md)  
 **Volver al inicio:** [README Principal](./README.md)
 
 ---

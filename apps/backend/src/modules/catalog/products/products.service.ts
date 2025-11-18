@@ -7,6 +7,132 @@ import { dbPool } from '../../../config/database.config';
 @Injectable()
 export class ProductsService {
   /**
+   * Obtener configuración de campos por tipo de producto
+   */
+  async getFieldConfigByProductType(productType: string) {
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
+    }
+
+    const pool = dbPool;
+
+    // Verificar primero si la tabla existe
+    const tableExistsQuery = `
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'catalog' 
+        AND table_name = 'product_type_field_config'
+      );
+    `;
+
+    try {
+      const tableCheck = await pool.query(tableExistsQuery);
+      const tableExists = tableCheck.rows[0]?.exists;
+
+      if (!tableExists) {
+        console.warn('⚠️ Tabla catalog.product_type_field_config no existe. Usando configuración por defecto.');
+        // Retornar configuración por defecto basada en el tipo de producto
+        return this.getDefaultFieldConfig(productType);
+      }
+
+      const sqlQuery = `
+        SELECT 
+          field_name,
+          is_visible,
+          is_required,
+          display_order
+        FROM catalog.product_type_field_config
+        WHERE product_type = $1::catalog.product_type
+        AND is_visible = TRUE
+        ORDER BY display_order
+      `;
+
+      const result = await pool.query(sqlQuery, [productType]);
+      
+      // Si no hay resultados, usar configuración por defecto
+      if (result.rows.length === 0) {
+        console.warn(`⚠️ No se encontró configuración para tipo ${productType}. Usando configuración por defecto.`);
+        return this.getDefaultFieldConfig(productType);
+      }
+
+      return result.rows.map(row => ({
+        fieldName: row.field_name,
+        isVisible: row.is_visible,
+        isRequired: row.is_required,
+        displayOrder: row.display_order,
+      }));
+    } catch (error: any) {
+      console.error('❌ Error obteniendo configuración de campos:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        productType,
+      });
+      
+      // Si es un error de tipo o tabla, usar configuración por defecto
+      if (error.code === '42P01' || error.code === '42804' || error.message?.includes('does not exist')) {
+        console.warn('⚠️ Usando configuración por defecto debido a error de base de datos.');
+        return this.getDefaultFieldConfig(productType);
+      }
+      
+      throw new ServiceUnavailableException(`Error al obtener configuración de campos: ${error.message}`);
+    }
+  }
+
+  /**
+   * Configuración por defecto de campos por tipo de producto
+   * (Fallback si la tabla no existe o no hay datos)
+   */
+  private getDefaultFieldConfig(productType: string) {
+    const baseFields = [
+      { fieldName: 'name', isVisible: true, isRequired: true, displayOrder: 1 },
+      { fieldName: 'description', isVisible: true, isRequired: false, displayOrder: 2 },
+      { fieldName: 'image_url', isVisible: true, isRequired: false, displayOrder: 3 },
+      { fieldName: 'price', isVisible: true, isRequired: true, displayOrder: 4 },
+      { fieldName: 'category_id', isVisible: true, isRequired: true, displayOrder: 5 },
+      { fieldName: 'product_type', isVisible: true, isRequired: true, displayOrder: 6 },
+      { fieldName: 'is_available', isVisible: true, isRequired: false, displayOrder: 7 },
+      { fieldName: 'is_featured', isVisible: true, isRequired: false, displayOrder: 8 },
+      { fieldName: 'display_order', isVisible: true, isRequired: false, displayOrder: 9 },
+      { fieldName: 'variant_groups', isVisible: true, isRequired: false, displayOrder: 10 },
+    ];
+
+    // Campos específicos según tipo
+    if (productType === 'food' || productType === 'beverage' || productType === 'grocery') {
+      return [
+        ...baseFields,
+        { fieldName: 'allergens', isVisible: true, isRequired: false, displayOrder: 11 },
+        { fieldName: 'nutritional_info', isVisible: true, isRequired: false, displayOrder: 12 },
+        { fieldName: 'requires_prescription', isVisible: false, isRequired: false, displayOrder: 13 },
+        { fieldName: 'age_restriction', isVisible: false, isRequired: false, displayOrder: 14 },
+        { fieldName: 'max_quantity_per_order', isVisible: false, isRequired: false, displayOrder: 15 },
+        { fieldName: 'requires_pharmacist_validation', isVisible: false, isRequired: false, displayOrder: 16 },
+      ];
+    } else if (productType === 'medicine') {
+      return [
+        ...baseFields,
+        { fieldName: 'allergens', isVisible: false, isRequired: false, displayOrder: 11 },
+        { fieldName: 'nutritional_info', isVisible: false, isRequired: false, displayOrder: 12 },
+        { fieldName: 'requires_prescription', isVisible: true, isRequired: false, displayOrder: 13 },
+        { fieldName: 'age_restriction', isVisible: true, isRequired: false, displayOrder: 14 },
+        { fieldName: 'max_quantity_per_order', isVisible: true, isRequired: false, displayOrder: 15 },
+        { fieldName: 'requires_pharmacist_validation', isVisible: true, isRequired: false, displayOrder: 16 },
+      ];
+    } else {
+      // non_food y otros
+      return [
+        ...baseFields,
+        { fieldName: 'allergens', isVisible: false, isRequired: false, displayOrder: 11 },
+        { fieldName: 'nutritional_info', isVisible: false, isRequired: false, displayOrder: 12 },
+        { fieldName: 'requires_prescription', isVisible: false, isRequired: false, displayOrder: 13 },
+        { fieldName: 'age_restriction', isVisible: false, isRequired: false, displayOrder: 14 },
+        { fieldName: 'max_quantity_per_order', isVisible: false, isRequired: false, displayOrder: 15 },
+        { fieldName: 'requires_pharmacist_validation', isVisible: false, isRequired: false, displayOrder: 16 },
+      ];
+    }
+  }
+
+  /**
    * Listar productos con filtros y paginación
    */
   async findAll(query: ListProductsDto) {
@@ -118,13 +244,20 @@ export class ProductsService {
           description: row.description,
           image_url: row.image_url,
           price: parseFloat(row.price),
+          product_type: row.product_type || 'food', // Valor por defecto para productos existentes
           category_id: row.category_id,
           category_name: row.category_name,
           is_available: row.is_available,
           is_featured: row.is_featured,
           variants: row.variants,
+          variant_groups: row.variants, // Por compatibilidad, también exponer como variant_groups
           nutritional_info: row.nutritional_info,
           allergens: row.allergens || [],
+          // Campos de farmacia
+          requires_prescription: row.requires_prescription || false,
+          age_restriction: row.age_restriction || null,
+          max_quantity_per_order: row.max_quantity_per_order || null,
+          requires_pharmacist_validation: row.requires_pharmacist_validation || false,
           display_order: row.display_order,
           created_at: row.created_at,
           updated_at: row.updated_at,
@@ -185,13 +318,20 @@ export class ProductsService {
         description: row.description,
         image_url: row.image_url,
         price: parseFloat(row.price),
+        product_type: row.product_type || 'food', // Valor por defecto para productos existentes
         category_id: row.category_id,
         category_name: row.category_name,
         is_available: row.is_available,
         is_featured: row.is_featured,
         variants: row.variants,
+        variant_groups: row.variants, // Por compatibilidad, también exponer como variant_groups
         nutritional_info: row.nutritional_info,
         allergens: row.allergens || [],
+        // Campos de farmacia
+        requires_prescription: row.requires_prescription || false,
+        age_restriction: row.age_restriction || null,
+        max_quantity_per_order: row.max_quantity_per_order || null,
+        requires_pharmacist_validation: row.requires_pharmacist_validation || false,
         display_order: row.display_order,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -240,28 +380,39 @@ export class ProductsService {
 
     const sqlQuery = `
       INSERT INTO catalog.products (
-        business_id, name, description, image_url, price, category_id,
+        business_id, name, description, image_url, price, product_type, category_id,
         is_available, is_featured, variants, nutritional_info, allergens,
-        display_order
+        display_order, requires_prescription, age_restriction, max_quantity_per_order,
+        requires_pharmacist_validation
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
       ) RETURNING *
     `;
 
     try {
+      // Manejar variant_groups: si viene variant_groups, usarlo; si no, usar variants (deprecated)
+      const variantsData = createProductDto.variant_groups 
+        ? JSON.stringify(createProductDto.variant_groups) 
+        : (createProductDto.variants ? JSON.stringify(createProductDto.variants) : null);
+
       const result = await pool.query(sqlQuery, [
         createProductDto.business_id,
         createProductDto.name,
         createProductDto.description || null,
         createProductDto.image_url || null,
         createProductDto.price,
+        createProductDto.product_type,
         createProductDto.category_id || null,
         createProductDto.is_available !== undefined ? createProductDto.is_available : true,
         createProductDto.is_featured !== undefined ? createProductDto.is_featured : false,
-        createProductDto.variants ? JSON.stringify(createProductDto.variants) : null,
+        variantsData,
         createProductDto.nutritional_info ? JSON.stringify(createProductDto.nutritional_info) : null,
         createProductDto.allergens || null,
         createProductDto.display_order || 0,
+        createProductDto.requires_prescription || false,
+        createProductDto.age_restriction || null,
+        createProductDto.max_quantity_per_order || null,
+        createProductDto.requires_pharmacist_validation || false,
       ]);
 
       return this.findOne(result.rows[0].id);
@@ -345,7 +496,17 @@ export class ProductsService {
       paramIndex++;
     }
 
-    if (updateProductDto.variants !== undefined) {
+    if (updateProductDto.product_type !== undefined) {
+      updateFields.push(`product_type = $${paramIndex}`);
+      updateValues.push(updateProductDto.product_type);
+      paramIndex++;
+    }
+
+    if (updateProductDto.variant_groups !== undefined) {
+      updateFields.push(`variants = $${paramIndex}`);
+      updateValues.push(updateProductDto.variant_groups ? JSON.stringify(updateProductDto.variant_groups) : null);
+      paramIndex++;
+    } else if (updateProductDto.variants !== undefined) {
       updateFields.push(`variants = $${paramIndex}`);
       updateValues.push(updateProductDto.variants ? JSON.stringify(updateProductDto.variants) : null);
       paramIndex++;
@@ -366,6 +527,31 @@ export class ProductsService {
     if (updateProductDto.display_order !== undefined) {
       updateFields.push(`display_order = $${paramIndex}`);
       updateValues.push(updateProductDto.display_order);
+      paramIndex++;
+    }
+
+    // Campos de farmacia
+    if (updateProductDto.requires_prescription !== undefined) {
+      updateFields.push(`requires_prescription = $${paramIndex}`);
+      updateValues.push(updateProductDto.requires_prescription);
+      paramIndex++;
+    }
+
+    if (updateProductDto.age_restriction !== undefined) {
+      updateFields.push(`age_restriction = $${paramIndex}`);
+      updateValues.push(updateProductDto.age_restriction || null);
+      paramIndex++;
+    }
+
+    if (updateProductDto.max_quantity_per_order !== undefined) {
+      updateFields.push(`max_quantity_per_order = $${paramIndex}`);
+      updateValues.push(updateProductDto.max_quantity_per_order || null);
+      paramIndex++;
+    }
+
+    if (updateProductDto.requires_pharmacist_validation !== undefined) {
+      updateFields.push(`requires_pharmacist_validation = $${paramIndex}`);
+      updateValues.push(updateProductDto.requires_pharmacist_validation);
       paramIndex++;
     }
 

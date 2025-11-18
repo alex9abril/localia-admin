@@ -29,6 +29,16 @@ import { SupabaseAuthGuard } from '../../../common/guards/supabase-auth.guard';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Get('field-config/:productType')
+  @ApiOperation({ summary: 'Obtener configuración de campos por tipo de producto' })
+  @ApiParam({ name: 'productType', description: 'Tipo de producto (food, beverage, medicine, grocery, non_food)' })
+  @ApiResponse({ status: 200, description: 'Configuración de campos obtenida exitosamente' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 503, description: 'Servicio no disponible' })
+  async getFieldConfig(@Param('productType') productType: string) {
+    return this.productsService.getFieldConfigByProductType(productType);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Listar productos con filtros y paginación' })
   @ApiResponse({ status: 200, description: 'Lista de productos obtenida exitosamente' })

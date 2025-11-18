@@ -125,6 +125,55 @@ Los archivos SQL están organizados por orden de creación y propósito. A conti
 **Cuándo ejecutar:** Solo si necesitas corregir roles admin existentes.  
 **Dependencias:** `schema.sql` (con datos existentes)
 
+#### 15. **`migration_advanced_catalog_system.sql`** 🆕
+**Descripción:** Sistema avanzado de catálogos de productos con funcionalidades completas.  
+**Contiene:**
+- ENUM `product_type` (food, beverage, medicine, grocery, non_food)
+- Atributos múltiples para categorías de productos (JSONB)
+- Sistema estructurado de variantes de productos (tablas `product_variant_groups` y `product_variants`)
+- Mejora de colecciones (paquetes como productos, cantidades fraccionarias)
+- Campos para productos de farmacia (receta, edad, límites)
+- Funciones auxiliares y vistas útiles
+**Cuándo ejecutar:** Después de `schema.sql`, para habilitar funcionalidades avanzadas de catálogos.  
+**Dependencias:** `schema.sql`  
+**Documentación:** Ver `docs/20-sistema-catalogos-productos-avanzado.md`  
+**Nota:** Este script es idempotente y seguro de ejecutar múltiples veces. Migra automáticamente productos existentes.
+
+#### 15.1. **`migration_product_type_field_config.sql`** 🆕
+**Descripción:** Configuración de campos por tipo de producto. Define qué campos del formulario deben mostrarse según el tipo de producto seleccionado (ej: alérgenos solo para alimentos, campos de farmacia solo para medicamentos).  
+**Contiene:** 
+- Tabla `catalog.product_type_field_config` con configuración de visibilidad y requerimiento de campos
+- Función `catalog.get_product_type_field_config(product_type)` para obtener configuración
+- Datos iniciales para todos los tipos de producto (food, beverage, medicine, grocery, non_food)
+**Cuándo ejecutar:** Después de `migration_advanced_catalog_system.sql`, para configurar qué campos mostrar en el formulario.  
+**Dependencias:** `schema.sql`, `migration_advanced_catalog_system.sql`  
+**Nota:** Esta migración permite personalizar el formulario de productos según el tipo, evitando mostrar campos irrelevantes (ej: alérgenos para medicamentos).
+
+#### 16. **`examples_advanced_catalog.sql`** 🆕
+**Descripción:** Ejemplos prácticos de uso del sistema avanzado de catálogos.  
+**Contiene:**
+- Ejemplo 1: Producto con variantes (Papas Fritas - Chica, Mediana, Grande)
+- Ejemplo 2: Producto con múltiples grupos de variantes (Hamburguesa con Tamaño + Extras)
+- Ejemplo 3: Categoría con atributos múltiples
+- Ejemplo 4: Combo con cantidades fraccionarias
+- Ejemplo 5: Producto de farmacia
+- Consultas útiles para trabajar con el sistema
+**Cuándo ejecutar:** Después de `migration_advanced_catalog_system.sql`, para ver ejemplos de uso.  
+**Dependencias:** `migration_advanced_catalog_system.sql`  
+**Nota:** Este script es solo para referencia y aprendizaje. No es necesario ejecutarlo para el funcionamiento del sistema.
+
+#### 17. **`seed_advanced_catalog_admin.sql`** 🆕
+**Descripción:** Catálogo completo y avanzado de tipos de productos y categorías gestionado por administradores.  
+**Contiene:**
+- Atributos completos para cada tipo de producto (food, beverage, medicine, grocery, non_food)
+- Categorías principales globales (Entradas, Platos Principales, Acompañamientos, Bebidas, Postres, Combos)
+- Subcategorías jerárquicas (Bebidas Frías, Bebidas Calientes, Bebidas Alcohólicas, Hamburguesas, Pizzas, Tacos, Pastas, Ensaladas, etc.)
+- Categorías especiales (Analgésicos, Vitaminas y Suplementos para farmacia)
+- Atributos JSONB completos para cada categoría (temperatura, tamaño de porción, sugerencias, etc.)
+**Cuándo ejecutar:** Después de `migration_advanced_catalog_system.sql`, para poblar el catálogo base.  
+**Dependencias:** `migration_advanced_catalog_system.sql`  
+**Nota:** Este catálogo es gestionado exclusivamente por administradores. Los locales solo pueden seleccionar categorías y tipos de producto existentes, no crear nuevos.
+
 ### Orden Recomendado de Ejecución
 
 ```sql
@@ -140,12 +189,19 @@ Los archivos SQL están organizados por orden de creación y propósito. A conti
 \i database/business_roles_and_multi_store.sql
 \i database/superadmin_account_users.sql
 
--- 4. Migraciones de usuarios existentes (si aplica)
+-- 4. Sistema avanzado de catálogos (OPCIONAL pero recomendado)
+\i database/migration_advanced_catalog_system.sql
+
+-- 5. Migraciones de usuarios existentes (si aplica)
 \i database/migrate_user_to_roles.sql  -- Modificar UUID antes de ejecutar
 
--- 5. Datos de ejemplo (OPCIONAL)
+-- 6. Catálogo avanzado para administradores (RECOMENDADO)
+\i database/seed_advanced_catalog_admin.sql  -- Catálogo completo de tipos y categorías
+
+-- 7. Datos de ejemplo (OPCIONAL)
 \i database/seed_catalog.sql
 \i database/seed_delivery_cycle.sql  -- Requiere usuarios en auth.users
+\i database/examples_advanced_catalog.sql  -- Ejemplos del sistema avanzado de catálogos
 
 -- 6. Scripts opcionales
 \i database/seed_roles_catalog.sql  -- Solo si necesitas documentación

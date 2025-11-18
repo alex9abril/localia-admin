@@ -13,6 +13,7 @@ import { RepartidoresModule } from './modules/repartidores/repartidores.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { CategoriesModule } from './modules/catalog/categories/categories.module';
 import { ProductsModule } from './modules/catalog/products/products.module';
+import { ProductTypeFieldConfigModule } from './modules/catalog/product-type-field-config/product-type-field-config.module';
 import { ServiceRegionsModule } from './modules/service-regions/service-regions.module';
 import { BusinessUsersModule } from './modules/business-users/business-users.module';
 
@@ -26,6 +27,7 @@ import { BusinessUsersModule } from './modules/business-users/business-users.mod
     ClientsModule,
     CategoriesModule,
     ProductsModule,
+    ProductTypeFieldConfigModule,
     ServiceRegionsModule,
     BusinessUsersModule,
     // Otros módulos se agregarán aquí

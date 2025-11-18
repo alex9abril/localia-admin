@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsBoolean, IsInt, IsUUID, IsUrl, IsNumber, IsArray, Min, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsUUID, IsUrl, IsNumber, IsArray, Min, MaxLength, IsEnum, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ProductType } from './create-product.dto';
 
 export class UpdateProductDto {
   @ApiPropertyOptional({ description: 'Nombre del producto', example: 'Hamburguesa Clásica' })
@@ -26,6 +27,11 @@ export class UpdateProductDto {
   @Type(() => Number)
   price?: number;
 
+  @ApiPropertyOptional({ description: 'Tipo de producto', enum: ProductType })
+  @IsOptional()
+  @IsEnum(ProductType)
+  product_type?: ProductType;
+
   @ApiPropertyOptional({ description: 'ID de la categoría', example: '11111111-1111-1111-1111-111111111111' })
   @IsOptional()
   @IsUUID()
@@ -41,12 +47,18 @@ export class UpdateProductDto {
   @IsBoolean()
   is_featured?: boolean;
 
-  @ApiPropertyOptional({ description: 'Variantes (JSON)', example: { size: ['pequeño', 'mediano', 'grande'] } })
+  @ApiPropertyOptional({ description: 'Grupos de variantes estructuradas', example: [] })
+  @IsOptional()
+  @IsArray()
+  variant_groups?: any[];
+
+  @ApiPropertyOptional({ description: 'Variantes (JSON) - Deprecated, usar variant_groups', example: { size: ['pequeño', 'mediano', 'grande'] } })
   @IsOptional()
   variants?: any;
 
   @ApiPropertyOptional({ description: 'Información nutricional (JSON)', example: { calories: 500, protein: 25 } })
   @IsOptional()
+  @IsObject()
   nutritional_info?: any;
 
   @ApiPropertyOptional({ description: 'Alérgenos', example: ['gluten', 'lactosa'] })
@@ -60,5 +72,28 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   display_order?: number;
+
+  // Campos de farmacia
+  @ApiPropertyOptional({ description: 'Requiere receta médica (solo para medicamentos)', example: false })
+  @IsOptional()
+  @IsBoolean()
+  requires_prescription?: boolean;
+
+  @ApiPropertyOptional({ description: 'Restricción de edad (solo para medicamentos)', example: 18 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  age_restriction?: number;
+
+  @ApiPropertyOptional({ description: 'Cantidad máxima por pedido (solo para medicamentos)', example: 3 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  max_quantity_per_order?: number;
+
+  @ApiPropertyOptional({ description: 'Requiere validación de farmacéutico (solo para medicamentos)', example: false })
+  @IsOptional()
+  @IsBoolean()
+  requires_pharmacist_validation?: boolean;
 }
 

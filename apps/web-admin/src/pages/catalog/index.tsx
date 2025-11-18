@@ -3,8 +3,9 @@ import Head from 'next/head';
 import AdminLayout from '@/components/layout/AdminLayout';
 import CategoriesManager from '@/components/catalog/CategoriesManager';
 import ProductsManager from '@/components/catalog/ProductsManager';
+import ProductTypeFieldConfigManager from '@/components/catalog/ProductTypeFieldConfigManager';
 
-type CatalogType = 'categories' | 'products' | 'collections' | 'promotions' | 'subscriptions' | 'ads';
+type CatalogType = 'categories' | 'products' | 'product-type-field-config' | 'collections' | 'promotions' | 'subscriptions' | 'ads';
 
 interface CatalogItem {
   id: string;
@@ -36,6 +37,17 @@ const catalogs: CatalogItem[] = [
       </svg>
     ),
     description: 'Productos del menú de cada local',
+  },
+  {
+    id: 'product-type-field-config',
+    name: 'Tipos de Productos',
+    type: 'product-type-field-config',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+      </svg>
+    ),
+    description: 'Configurar campos del formulario por tipo de producto',
   },
   {
     id: 'collections',
@@ -142,7 +154,8 @@ export default function CatalogPage() {
                 {/* Renderizar componente específico del catálogo */}
                 {selectedCatalog === 'categories' && <CategoriesManager />}
                 {selectedCatalog === 'products' && <ProductsManager />}
-                {selectedCatalog !== 'categories' && selectedCatalog !== 'products' && (
+                {selectedCatalog === 'product-type-field-config' && <ProductTypeFieldConfigManager />}
+                {selectedCatalog !== 'categories' && selectedCatalog !== 'products' && selectedCatalog !== 'product-type-field-config' && (
                   <div className="text-center py-12">
                     <p className="text-xs text-gray-500">
                       Gestión de {selectedCatalog} - Por implementar

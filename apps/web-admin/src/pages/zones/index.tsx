@@ -356,32 +356,11 @@ export default function ZonesPage() {
         }
       }, 100);
 
-    // Parsear GeoJSON del polígono - SIEMPRE usar el polígono real, no el círculo
+    // Parsear GeoJSON del polígono
     if (region.coverage_area_geojson) {
       try {
-        let geojson = JSON.parse(region.coverage_area_geojson);
+        const geojson = JSON.parse(region.coverage_area_geojson);
         console.log('📍 Cargando polígono desde GeoJSON');
-
-        // Google Maps requiere un Feature o FeatureCollection, no un Geometry directo
-        // Si recibimos un Polygon directo, envolverlo en un Feature
-        if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
-          geojson = {
-            type: 'Feature',
-            geometry: geojson,
-            properties: {}
-          };
-        } else if (geojson.type === 'FeatureCollection' && geojson.features) {
-          // Ya es un FeatureCollection, está bien
-        } else if (geojson.type === 'Feature') {
-          // Ya es un Feature, está bien
-        } else {
-          // Si no es ninguno de los formatos esperados, intentar envolverlo
-          geojson = {
-            type: 'Feature',
-            geometry: geojson,
-            properties: {}
-          };
-        }
 
           // Crear polígono desde GeoJSON usando Data layer
           if (window.google.maps.Data) {
@@ -414,15 +393,33 @@ export default function ZonesPage() {
         }
       } catch (error) {
         console.error('❌ Error parseando GeoJSON:', error);
-        console.error('❌ GeoJSON recibido:', region.coverage_area_geojson);
-        // NO mostrar círculo como fallback - el círculo no representa la zona real
-        // Si el polígono no se puede cargar, mostrar un mensaje de error
-        alert('⚠️ Error: No se pudo cargar el polígono de la zona. La validación usa el polígono real, no el círculo visual.');
+
+        // Si falla, mostrar un círculo aproximado basado en el radio
+        const circle = new window.google.maps.Circle({
+          strokeColor: '#4F46E5',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: '#4F46E5',
+          fillOpacity: 0.2,
+          map: map,
+          center: center,
+          radius: Number(region.max_delivery_radius_meters),
+        });
+        console.log('⭕ Mostrando círculo de radio:', region.max_delivery_radius_meters);
       }
     } else {
-      // Si no hay GeoJSON, NO mostrar círculo - el círculo no es la zona real
-      console.warn('⚠️ No hay GeoJSON disponible para la zona. El círculo visual NO representa la zona real.');
-      alert('⚠️ Advertencia: No hay polígono de cobertura disponible para esta zona. La zona se valida usando el polígono real, no el círculo visual.');
+      // Si no hay GeoJSON, mostrar un círculo basado en el radio
+      const circle = new window.google.maps.Circle({
+        strokeColor: '#4F46E5',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#4F46E5',
+        fillOpacity: 0.2,
+        map: map,
+        center: center,
+        radius: Number(region.max_delivery_radius_meters),
+      });
+      console.log('⭕ Mostrando círculo de radio:', region.max_delivery_radius_meters);
     }
 
     // Marcador en el centro
