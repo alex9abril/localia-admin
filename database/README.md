@@ -5,6 +5,7 @@ Este directorio contiene el esquema de base de datos para la plataforma LOCALIA.
 ## 📁 Archivos SQL - Documentación Completa
 
 ### Secuencia de Creación y Descripción
+Test
 
 Los archivos SQL están organizados por orden de creación y propósito. A continuación se documenta cada uno:
 
