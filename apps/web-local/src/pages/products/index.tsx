@@ -941,49 +941,134 @@ export function ProductForm({
                   </label>
 
                   <div className="space-y-2">
-                    {(group.variants || []).map((variant, variantIndex) => (
-                      <div key={variantIndex} className="flex gap-2 items-start p-2 bg-gray-50 rounded">
-                        <div className="flex-1 grid grid-cols-3 gap-2">
-                          <input
-                            type="text"
-                            className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                            value={variant.name}
-                            onChange={(e) => updateVariant(groupIndex, variantIndex, { name: e.target.value })}
-                            placeholder="Nombre (ej: Chica)"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                            value={variant.price_adjustment}
-                            onChange={(e) => updateVariant(groupIndex, variantIndex, { price_adjustment: parseFloat(e.target.value) || 0 })}
-                            placeholder="Ajuste precio"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                            value={variant.absolute_price || ''}
-                            onChange={(e) => updateVariant(groupIndex, variantIndex, { absolute_price: e.target.value ? parseFloat(e.target.value) : undefined })}
-                            placeholder="Precio absoluto (opcional)"
-                          />
+                    {(group.variants || []).map((variant, variantIndex) => {
+                      // Calcular precio final para mostrar
+                      const basePrice = formData.price || 0;
+                      const finalPrice = variant.absolute_price !== undefined && variant.absolute_price !== null
+                        ? variant.absolute_price
+                        : basePrice + (variant.price_adjustment || 0);
+                      
+                      return (
+                        <div key={variantIndex} className="flex gap-2 items-start p-3 bg-gray-50 rounded border border-gray-200">
+                          <div className="flex-1 space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-xs font-normal text-gray-600 mb-1">Nombre</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                                  value={variant.name}
+                                  onChange={(e) => updateVariant(groupIndex, variantIndex, { name: e.target.value })}
+                                  placeholder="Ej: Chica, Mediana, Grande"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-normal text-gray-600 mb-1">
+                                  Ajuste de Precio
+                                  <span className="text-gray-400 ml-1">(relativo)</span>
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                                    value={variant.price_adjustment}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value) || 0;
+                                      updateVariant(groupIndex, variantIndex, { 
+                                        price_adjustment: value,
+                                        absolute_price: undefined // Limpiar precio absoluto si se usa ajuste
+                                      });
+                                    }}
+                                    placeholder="+0.00"
+                                    disabled={variant.absolute_price !== undefined && variant.absolute_price !== null}
+                                  />
+                                  {variant.price_adjustment !== 0 && (
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                      {variant.price_adjustment > 0 ? '+' : ''}{variant.price_adjustment.toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {basePrice} + {variant.price_adjustment || 0} = ${finalPrice.toFixed(2)}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-normal text-gray-600 mb-1">
+                                  Precio Absoluto
+                                  <span className="text-gray-400 ml-1">(fijo)</span>
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                                    value={variant.absolute_price || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                                      updateVariant(groupIndex, variantIndex, { 
+                                        absolute_price: value,
+                                        price_adjustment: value !== undefined ? 0 : variant.price_adjustment
+                                      });
+                                    }}
+                                    placeholder="Opcional"
+                                  />
+                                </div>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {variant.absolute_price ? `Precio fijo: $${variant.absolute_price.toFixed(2)}` : 'Usa ajuste relativo'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
+                              <span>Precio final: <strong className="text-gray-700">${finalPrice.toFixed(2)}</strong></span>
+                              {variant.absolute_price !== undefined && variant.absolute_price !== null && (
+                                <span className="text-blue-600">(Precio fijo)</span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeVariant(groupIndex, variantIndex)}
+                            className="text-gray-400 hover:text-gray-600 mt-6"
+                            title="Eliminar variante"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeVariant(groupIndex, variantIndex)}
-                          className="text-xs text-gray-500 hover:text-gray-700"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button
                       type="button"
                       onClick={() => addVariant(groupIndex)}
-                      className="text-xs text-gray-600 hover:text-gray-800"
+                      className="mt-2 px-3 py-1.5 text-xs font-normal text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
                     >
                       + Agregar Variante
                     </button>
+                  </div>
+                  
+                  {/* Ayuda sobre precios y configuración */}
+                  <div className="mt-3 space-y-2">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded text-xs text-gray-600">
+                      <p className="font-medium text-gray-700 mb-1">💡 Cómo funcionan los precios:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-gray-600">
+                        <li><strong>Ajuste de Precio:</strong> Se suma al precio base ({formData.price ? `$${formData.price.toFixed(2)}` : '$0.00'}). Ej: +$5.00 = ${formData.price ? (formData.price + 5).toFixed(2) : '5.00'}</li>
+                        <li><strong>Precio Absoluto:</strong> Reemplaza el precio base. Si lo usas, ignora el ajuste.</li>
+                        <li><strong>Ejemplo:</strong> Producto $120 → Chica: +$0 = $120, Grande: +$20 = $140, o Grande: $150 (absoluto)</li>
+                      </ul>
+                    </div>
+                    
+                    {/* Ayuda sobre tipos de selección */}
+                    <div className="p-3 bg-green-50 border border-green-200 rounded text-xs text-gray-600">
+                      <p className="font-medium text-gray-700 mb-1">📋 Tipos de Selección:</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-gray-600">
+                        <li><strong>Única:</strong> El cliente elige solo UNA opción (ej: Tamaño - Chica, Mediana o Grande)</li>
+                        <li><strong>Múltiple:</strong> El cliente puede elegir VARIAS opciones (ej: Salsas - puede elegir Magui, Valentina, Inglesa, etc.)</li>
+                        <li><strong>💡 Para salsas/condimentos:</strong> Usa "Múltiple" para que puedan elegir varias salsas</li>
+                        <li><strong>💡 Para tamaños:</strong> Usa "Única" porque solo pueden elegir un tamaño</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               ))}

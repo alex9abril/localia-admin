@@ -83,7 +83,21 @@ export default function ProductDetailPage() {
         requires_pharmacist_validation: productData.requires_pharmacist_validation,
       });
       setImagePreview(productData.image_url || null);
-      setVariantGroups(productData.variant_groups || []);
+      
+      // Asegurarse de que variant_groups sea un array y que cada grupo tenga su array de variants
+      let loadedVariantGroups = productData.variant_groups || [];
+      if (Array.isArray(loadedVariantGroups)) {
+        // Asegurarse de que cada grupo tenga su array de variants
+        loadedVariantGroups = loadedVariantGroups.map((group: any) => ({
+          ...group,
+          variants: Array.isArray(group.variants) ? group.variants : [],
+        }));
+      } else {
+        loadedVariantGroups = [];
+      }
+      
+      console.log('🔍 [FRONTEND] Cargando variant_groups:', JSON.stringify(loadedVariantGroups, null, 2));
+      setVariantGroups(loadedVariantGroups);
       setAllergens(productData.allergens || []);
       setNutritionalInfo(productData.nutritional_info || {});
     } catch (err: any) {
@@ -122,6 +136,9 @@ export default function ProductDetailPage() {
       const { business_id, ...updateData } = formData;
       
       // Construir objeto sin business_id explícitamente
+      // Asegurarse de que variant_groups tenga la estructura correcta con variantes
+      console.log('🔍 [FRONTEND] variantGroups antes de enviar:', JSON.stringify(variantGroups, null, 2));
+      
       const productData: any = {
         name: updateData.name,
         description: updateData.description,
@@ -140,6 +157,8 @@ export default function ProductDetailPage() {
         max_quantity_per_order: updateData.max_quantity_per_order,
         requires_pharmacist_validation: updateData.requires_pharmacist_validation,
       };
+      
+      console.log('🔍 [FRONTEND] productData.variant_groups:', JSON.stringify(productData.variant_groups, null, 2));
 
       // Eliminar campos undefined para no enviarlos
       Object.keys(productData).forEach(key => {

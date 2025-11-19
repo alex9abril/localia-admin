@@ -359,53 +359,91 @@ export default function ZonesPage() {
     // Parsear GeoJSON del polígono
     if (region.coverage_area_geojson) {
       try {
-        const geojson = JSON.parse(region.coverage_area_geojson);
-        console.log('📍 Cargando polígono desde GeoJSON');
+        let geojson = JSON.parse(region.coverage_area_geojson);
+        console.log('📍 GeoJSON parseado:', geojson);
+        console.log('📍 Tipo de GeoJSON:', geojson.type);
 
-          // Crear polígono desde GeoJSON usando Data layer
-          if (window.google.maps.Data) {
-            const dataLayer = new window.google.maps.Data();
-            dataLayer.setMap(map);
+        // Google Maps requiere Feature o FeatureCollection
+        // Si es un Polygon o MultiPolygon directo, envolverlo en un Feature
+        if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+          console.log('📍 Envolviendo Polygon en Feature');
+          geojson = {
+            type: 'Feature',
+            geometry: geojson,
+            properties: {}
+          };
+        } else if (geojson.type === 'FeatureCollection' && geojson.features) {
+          console.log('📍 Es FeatureCollection, OK');
+        } else if (geojson.type === 'Feature') {
+          console.log('📍 Es Feature, OK');
+        } else {
+          console.warn('📍 Formato desconocido, intentando envolver:', geojson.type);
+          geojson = {
+            type: 'Feature',
+            geometry: geojson,
+            properties: {}
+          };
+        }
+
+        console.log('📍 GeoJSON final para Google Maps:', geojson);
+
+        // Crear polígono desde GeoJSON usando Data layer
+        if (window.google.maps.Data) {
+          const dataLayer = new window.google.maps.Data();
+          dataLayer.setMap(map);
+          
+          try {
             dataLayer.addGeoJson(geojson);
+            console.log('✅ Polígono agregado al mapa correctamente');
 
-        // Estilo del polígono
+            // Estilo del polígono
             dataLayer.setStyle({
-          fillColor: '#4F46E5',
-          fillOpacity: 0.2,
-          strokeColor: '#4F46E5',
-          strokeWeight: 2,
-          strokeOpacity: 0.8,
-        });
-
-        // Ajustar el zoom para mostrar todo el polígono
-        const bounds = new window.google.maps.LatLngBounds();
-            dataLayer.forEach(function (feature: any) {
-          const geometry = feature.getGeometry();
-          if (geometry) {
-            geometry.forEachLatLng(function (latLng: any) {
-              bounds.extend(latLng);
+              fillColor: '#4F46E5',
+              fillOpacity: 0.2,
+              strokeColor: '#4F46E5',
+              strokeWeight: 2,
+              strokeOpacity: 0.8,
             });
-          }
-        });
-        if (!bounds.isEmpty()) {
-          map.fitBounds(bounds);
+
+            // Ajustar el zoom para mostrar todo el polígono
+            const bounds = new window.google.maps.LatLngBounds();
+            dataLayer.forEach(function (feature: any) {
+              const geometry = feature.getGeometry();
+              if (geometry) {
+                geometry.forEachLatLng(function (latLng: any) {
+                  bounds.extend(latLng);
+                });
+              }
+            });
+            if (!bounds.isEmpty()) {
+              map.fitBounds(bounds);
+              console.log('✅ Zoom ajustado al polígono');
+            } else {
+              console.warn('⚠️ Bounds vacío, usando zoom por defecto');
             }
+          } catch (addError) {
+            console.error('❌ Error agregando GeoJSON al mapa:', addError);
+            throw addError; // Re-lanzar para que caiga en el catch general
+          }
+        } else {
+          throw new Error('Google Maps Data layer no disponible');
         }
       } catch (error) {
-        console.error('❌ Error parseando GeoJSON:', error);
+        console.error('❌ Error parseando/agregando GeoJSON:', error);
+        console.error('❌ GeoJSON original:', region.coverage_area_geojson);
 
         // Si falla, mostrar un círculo aproximado basado en el radio
         const circle = new window.google.maps.Circle({
-          strokeColor: '#4F46E5',
+          strokeColor: '#EF4444',
           strokeOpacity: 0.8,
           strokeWeight: 2,
-          fillColor: '#4F46E5',
+          fillColor: '#EF4444',
           fillOpacity: 0.2,
           map: map,
           center: center,
           radius: Number(region.max_delivery_radius_meters),
         });
-        console.log('⭕ Mostrando círculo de radio:', region.max_delivery_radius_meters);
+        console.log('⭕ Mostrando círculo de fallback (radio):', region.max_delivery_radius_meters);
       }
     } else {
       // Si no hay GeoJSON, mostrar un círculo basado en el radio

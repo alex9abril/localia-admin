@@ -334,13 +334,17 @@ export class ProductsService {
         if (typeof row.variants === 'string') {
           try {
             variantGroups = JSON.parse(row.variants);
+            console.log('🔍 Parseando variants desde string:', variantGroups);
           } catch (e) {
             console.error('Error parseando variants JSON:', e);
             variantGroups = null;
           }
         } else {
           variantGroups = row.variants;
+          console.log('🔍 Variants ya es objeto/array:', JSON.stringify(variantGroups, null, 2));
         }
+      } else {
+        console.log('🔍 No hay variants en row.variants');
       }
 
       return {
@@ -430,9 +434,26 @@ export class ProductsService {
 
     try {
       // Manejar variant_groups: si viene variant_groups, usarlo; si no, usar variants (deprecated)
-      const variantsData = createProductDto.variant_groups 
-        ? JSON.stringify(createProductDto.variant_groups) 
-        : (createProductDto.variants ? JSON.stringify(createProductDto.variants) : null);
+      let variantsData: string | null = null;
+      if (createProductDto.variant_groups) {
+        // Sanitizar grupos para asegurar que cada uno tenga su array de variants
+        const sanitizedGroups = Array.isArray(createProductDto.variant_groups)
+          ? createProductDto.variant_groups.map((group: any) => {
+              const sanitizedGroup = { ...group };
+              // Asegurarse de que variants sea un array
+              if (!Array.isArray(sanitizedGroup.variants)) {
+                sanitizedGroup.variants = [];
+              }
+              return sanitizedGroup;
+            })
+          : createProductDto.variant_groups;
+        variantsData = JSON.stringify(sanitizedGroups);
+        console.log('🔍 [CREATE] Guardando variant_groups (sanitizado):', variantsData);
+        console.log('🔍 [CREATE] Estructura original:', JSON.stringify(createProductDto.variant_groups, null, 2));
+      } else if (createProductDto.variants) {
+        variantsData = JSON.stringify(createProductDto.variants);
+        console.log('🔍 [CREATE] Guardando variants (deprecated):', variantsData);
+      }
 
       // Manejar allergens: convertir array a formato PostgreSQL TEXT[]
       // Si es null, undefined, o array vacío, usar null
@@ -480,6 +501,14 @@ export class ProductsService {
       });
 
       const result = await pool.query(sqlQuery, queryParams);
+      
+      // Verificar qué se guardó en la base de datos
+      const savedRow = result.rows[0];
+      console.log('🔍 [CREATE] Producto guardado, variants en DB:', savedRow.variants);
+      console.log('🔍 [CREATE] Tipo de variants:', typeof savedRow.variants);
+      if (savedRow.variants) {
+        console.log('🔍 [CREATE] Variants como string:', JSON.stringify(savedRow.variants));
+      }
 
       return this.findOne(result.rows[0].id);
     } catch (error: any) {
@@ -602,9 +631,29 @@ export class ProductsService {
     if (updateProductDto.variant_groups !== undefined) {
       // Si es un array vacío, guardarlo como '[]' en JSON, no como null
       // Esto permite eliminar todos los grupos de variantes
-      const variantGroupsValue = Array.isArray(updateProductDto.variant_groups) && updateProductDto.variant_groups.length === 0
-        ? '[]'
-        : (updateProductDto.variant_groups ? JSON.stringify(updateProductDto.variant_groups) : null);
+      let variantGroupsValue: string | null = null;
+      if (Array.isArray(updateProductDto.variant_groups)) {
+        if (updateProductDto.variant_groups.length === 0) {
+          variantGroupsValue = '[]';
+        } else {
+          // Asegurarse de que el JSON se stringifica correctamente con toda la estructura anidada
+          // Verificar que cada grupo tenga su array de variants
+          const sanitizedGroups = updateProductDto.variant_groups.map((group: any) => {
+            const sanitizedGroup = { ...group };
+            // Asegurarse de que variants sea un array
+            if (!Array.isArray(sanitizedGroup.variants)) {
+              sanitizedGroup.variants = [];
+            }
+            return sanitizedGroup;
+          });
+          variantGroupsValue = JSON.stringify(sanitizedGroups);
+          console.log('🔍 [UPDATE] Guardando variant_groups (sanitizado):', variantGroupsValue);
+          console.log('🔍 [UPDATE] Estructura original recibida:', JSON.stringify(updateProductDto.variant_groups, null, 2));
+        }
+      } else if (updateProductDto.variant_groups) {
+        variantGroupsValue = JSON.stringify(updateProductDto.variant_groups);
+        console.log('🔍 [UPDATE] Guardando variant_groups (no array):', variantGroupsValue);
+      }
       updateFields.push(`variants = $${paramIndex}`);
       updateValues.push(variantGroupsValue);
       paramIndex++;
@@ -677,7 +726,18 @@ export class ProductsService {
     `;
 
     try {
-      await pool.query(sqlQuery, updateValues);
+      const result = await pool.query(sqlQuery, updateValues);
+      
+      // Verificar qué se guardó en la base de datos
+      if (result.rows.length > 0) {
+        const savedRow = result.rows[0];
+        console.log('🔍 [UPDATE] Producto actualizado, variants en DB:', savedRow.variants);
+        console.log('🔍 [UPDATE] Tipo de variants:', typeof savedRow.variants);
+        if (savedRow.variants) {
+          console.log('🔍 [UPDATE] Variants como string:', JSON.stringify(savedRow.variants, null, 2));
+        }
+      }
+      
       return this.findOne(id);
     } catch (error: any) {
       console.error('❌ Error actualizando producto:', {
