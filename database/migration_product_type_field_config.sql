@@ -16,6 +16,37 @@
 SET search_path TO core, catalog, orders, reviews, communication, commerce, social, public;
 
 -- ============================================================================
+-- VERIFICAR/CREAR DEPENDENCIAS
+-- ============================================================================
+
+-- Verificar que el schema catalog existe
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'catalog') THEN
+        RAISE EXCEPTION 'El schema "catalog" no existe. Ejecuta schema.sql primero.';
+    END IF;
+END $$;
+
+-- Crear el tipo product_type si no existe (dependencia de migration_advanced_catalog_system.sql)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_type t
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'catalog' AND t.typname = 'product_type'
+    ) THEN
+        CREATE TYPE catalog.product_type AS ENUM (
+            'food',           -- Alimento
+            'beverage',      -- Bebida
+            'medicine',       -- Medicamento (farmacia)
+            'grocery',       -- Abarrotes
+            'non_food'       -- No alimenticio
+        );
+        RAISE NOTICE 'Tipo catalog.product_type creado (normalmente se crea en migration_advanced_catalog_system.sql)';
+    END IF;
+END $$;
+
+-- ============================================================================
 -- TABLA: Configuración de Campos por Tipo de Producto
 -- ============================================================================
 
@@ -199,10 +230,9 @@ BEGIN
         ptfc.display_order
     FROM catalog.product_type_field_config ptfc
     WHERE ptfc.product_type = p_product_type
-    AND ptfc.is_visible = TRUE
     ORDER BY ptfc.display_order;
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION catalog.get_product_type_field_config IS 'Obtiene la configuración de campos visibles para un tipo de producto';
+COMMENT ON FUNCTION catalog.get_product_type_field_config IS 'Obtiene la configuración completa de campos (visibles e invisibles) para un tipo de producto';
 

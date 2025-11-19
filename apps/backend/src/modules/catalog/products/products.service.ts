@@ -43,7 +43,6 @@ export class ProductsService {
           display_order
         FROM catalog.product_type_field_config
         WHERE product_type = $1::catalog.product_type
-        AND is_visible = TRUE
         ORDER BY display_order
       `;
 
@@ -55,12 +54,14 @@ export class ProductsService {
         return this.getDefaultFieldConfig(productType);
       }
 
-      return result.rows.map(row => ({
+      const config = result.rows.map(row => ({
         fieldName: row.field_name,
         isVisible: row.is_visible,
         isRequired: row.is_required,
         displayOrder: row.display_order,
       }));
+
+      return config;
     } catch (error: any) {
       console.error('❌ Error obteniendo configuración de campos:', {
         message: error.message,
@@ -236,32 +237,49 @@ export class ProductsService {
       const data = result.rows || [];
 
       return {
-        data: data.map(row => ({
-          id: row.id,
-          business_id: row.business_id,
-          business_name: row.business_name,
-          name: row.name,
-          description: row.description,
-          image_url: row.image_url,
-          price: parseFloat(row.price),
-          product_type: row.product_type || 'food', // Valor por defecto para productos existentes
-          category_id: row.category_id,
-          category_name: row.category_name,
-          is_available: row.is_available,
-          is_featured: row.is_featured,
-          variants: row.variants,
-          variant_groups: row.variants, // Por compatibilidad, también exponer como variant_groups
-          nutritional_info: row.nutritional_info,
-          allergens: row.allergens || [],
-          // Campos de farmacia
-          requires_prescription: row.requires_prescription || false,
-          age_restriction: row.age_restriction || null,
-          max_quantity_per_order: row.max_quantity_per_order || null,
-          requires_pharmacist_validation: row.requires_pharmacist_validation || false,
-          display_order: row.display_order,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        })),
+        data: data.map(row => {
+          // Parsear variant_groups si es un string JSON o mantenerlo si ya es un objeto/array
+          let variantGroups = null;
+          if (row.variants) {
+            if (typeof row.variants === 'string') {
+              try {
+                variantGroups = JSON.parse(row.variants);
+              } catch (e) {
+                console.error('Error parseando variants JSON:', e);
+                variantGroups = null;
+              }
+            } else {
+              variantGroups = row.variants;
+            }
+          }
+
+          return {
+            id: row.id,
+            business_id: row.business_id,
+            business_name: row.business_name,
+            name: row.name,
+            description: row.description,
+            image_url: row.image_url,
+            price: parseFloat(row.price),
+            product_type: row.product_type || 'food', // Valor por defecto para productos existentes
+            category_id: row.category_id,
+            category_name: row.category_name,
+            is_available: row.is_available,
+            is_featured: row.is_featured,
+            variants: variantGroups,
+            variant_groups: variantGroups || [], // Siempre retornar array, nunca null
+            nutritional_info: row.nutritional_info,
+            allergens: row.allergens || [],
+            // Campos de farmacia
+            requires_prescription: row.requires_prescription || false,
+            age_restriction: row.age_restriction || null,
+            max_quantity_per_order: row.max_quantity_per_order || null,
+            requires_pharmacist_validation: row.requires_pharmacist_validation || false,
+            display_order: row.display_order,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+          };
+        }),
         pagination: {
           page,
           limit,
@@ -310,6 +328,21 @@ export class ProductsService {
 
       const row = result.rows[0];
 
+      // Parsear variant_groups si es un string JSON o mantenerlo si ya es un objeto/array
+      let variantGroups = null;
+      if (row.variants) {
+        if (typeof row.variants === 'string') {
+          try {
+            variantGroups = JSON.parse(row.variants);
+          } catch (e) {
+            console.error('Error parseando variants JSON:', e);
+            variantGroups = null;
+          }
+        } else {
+          variantGroups = row.variants;
+        }
+      }
+
       return {
         id: row.id,
         business_id: row.business_id,
@@ -323,8 +356,8 @@ export class ProductsService {
         category_name: row.category_name,
         is_available: row.is_available,
         is_featured: row.is_featured,
-        variants: row.variants,
-        variant_groups: row.variants, // Por compatibilidad, también exponer como variant_groups
+        variants: variantGroups,
+        variant_groups: variantGroups || [], // Siempre retornar array, nunca null
         nutritional_info: row.nutritional_info,
         allergens: row.allergens || [],
         // Campos de farmacia
@@ -368,7 +401,13 @@ export class ProductsService {
     }
 
     // Validar que la categoría existe si se proporciona
-    if (createProductDto.category_id) {
+    if (createProductDto.category_id && createProductDto.category_id.trim() !== '') {
+      // Validar formato UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(createProductDto.category_id)) {
+        throw new BadRequestException('El category_id debe ser un UUID válido');
+      }
+      
       const categoryCheck = await pool.query(
         'SELECT id FROM catalog.product_categories WHERE id = $1',
         [createProductDto.category_id]
@@ -395,33 +434,77 @@ export class ProductsService {
         ? JSON.stringify(createProductDto.variant_groups) 
         : (createProductDto.variants ? JSON.stringify(createProductDto.variants) : null);
 
-      const result = await pool.query(sqlQuery, [
+      // Manejar allergens: convertir array a formato PostgreSQL TEXT[]
+      // Si es null, undefined, o array vacío, usar null
+      let allergensData: string[] | null = null;
+      if (createProductDto.allergens && Array.isArray(createProductDto.allergens) && createProductDto.allergens.length > 0) {
+        allergensData = createProductDto.allergens.filter(a => a && typeof a === 'string' && a.trim().length > 0);
+        // Si después de filtrar está vacío, usar null
+        if (allergensData.length === 0) {
+          allergensData = null;
+        }
+      }
+
+      // Normalizar image_url: si está vacío o es solo espacios, usar null
+      const imageUrl = createProductDto.image_url && createProductDto.image_url.trim() !== '' 
+        ? createProductDto.image_url.trim() 
+        : null;
+
+      const queryParams = [
         createProductDto.business_id,
         createProductDto.name,
         createProductDto.description || null,
-        createProductDto.image_url || null,
+        imageUrl,
         createProductDto.price,
         createProductDto.product_type,
-        createProductDto.category_id || null,
+        (createProductDto.category_id && createProductDto.category_id.trim() !== '') ? createProductDto.category_id : null,
         createProductDto.is_available !== undefined ? createProductDto.is_available : true,
         createProductDto.is_featured !== undefined ? createProductDto.is_featured : false,
         variantsData,
         createProductDto.nutritional_info ? JSON.stringify(createProductDto.nutritional_info) : null,
-        createProductDto.allergens || null,
+        allergensData,
         createProductDto.display_order || 0,
         createProductDto.requires_prescription || false,
         createProductDto.age_restriction || null,
         createProductDto.max_quantity_per_order || null,
         createProductDto.requires_pharmacist_validation || false,
-      ]);
+      ];
+
+      console.log('🔍 Intentando crear producto con parámetros:', {
+        business_id: queryParams[0],
+        name: queryParams[1],
+        product_type: queryParams[5],
+        allergens: queryParams[11],
+        allergens_type: typeof queryParams[11],
+        allergens_is_array: Array.isArray(queryParams[11]),
+      });
+
+      const result = await pool.query(sqlQuery, queryParams);
 
       return this.findOne(result.rows[0].id);
     } catch (error: any) {
       console.error('❌ Error creando producto:', {
         message: error.message,
         code: error.code,
+        detail: error.detail,
+        hint: error.hint,
+        position: error.position,
+        internalPosition: error.internalPosition,
+        internalQuery: error.internalQuery,
+        where: error.where,
+        schema: error.schema,
+        table: error.table,
+        column: error.column,
+        dataType: error.dataType,
+        constraint: error.constraint,
+        file: error.file,
+        line: error.line,
+        routine: error.routine,
+        stack: error.stack,
       });
-      throw new ServiceUnavailableException('Error al crear producto');
+      // También loguear el error completo
+      console.error('❌ Error completo:', error);
+      throw new ServiceUnavailableException(`Error al crear producto: ${error.message}`);
     }
   }
 
@@ -439,7 +522,13 @@ export class ProductsService {
     const existing = await this.findOne(id);
 
     // Validar que la categoría existe si se proporciona
-    if (updateProductDto.category_id) {
+    if (updateProductDto.category_id && updateProductDto.category_id.trim() !== '') {
+      // Validar formato UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(updateProductDto.category_id)) {
+        throw new BadRequestException('El category_id debe ser un UUID válido');
+      }
+      
       const categoryCheck = await pool.query(
         'SELECT id FROM catalog.product_categories WHERE id = $1',
         [updateProductDto.category_id]
@@ -467,8 +556,12 @@ export class ProductsService {
     }
 
     if (updateProductDto.image_url !== undefined) {
+      // Normalizar image_url: si está vacío o es solo espacios, usar null
+      const imageUrl = updateProductDto.image_url && updateProductDto.image_url.trim() !== '' 
+        ? updateProductDto.image_url.trim() 
+        : null;
       updateFields.push(`image_url = $${paramIndex}`);
-      updateValues.push(updateProductDto.image_url);
+      updateValues.push(imageUrl);
       paramIndex++;
     }
 
@@ -479,8 +572,12 @@ export class ProductsService {
     }
 
     if (updateProductDto.category_id !== undefined) {
+      // Normalizar category_id: si está vacío o es solo espacios, usar null
+      const categoryId = (updateProductDto.category_id && updateProductDto.category_id.trim() !== '') 
+        ? updateProductDto.category_id 
+        : null;
       updateFields.push(`category_id = $${paramIndex}`);
-      updateValues.push(updateProductDto.category_id || null);
+      updateValues.push(categoryId);
       paramIndex++;
     }
 
@@ -503,12 +600,20 @@ export class ProductsService {
     }
 
     if (updateProductDto.variant_groups !== undefined) {
+      // Si es un array vacío, guardarlo como '[]' en JSON, no como null
+      // Esto permite eliminar todos los grupos de variantes
+      const variantGroupsValue = Array.isArray(updateProductDto.variant_groups) && updateProductDto.variant_groups.length === 0
+        ? '[]'
+        : (updateProductDto.variant_groups ? JSON.stringify(updateProductDto.variant_groups) : null);
       updateFields.push(`variants = $${paramIndex}`);
-      updateValues.push(updateProductDto.variant_groups ? JSON.stringify(updateProductDto.variant_groups) : null);
+      updateValues.push(variantGroupsValue);
       paramIndex++;
     } else if (updateProductDto.variants !== undefined) {
+      const variantsValue = Array.isArray(updateProductDto.variants) && updateProductDto.variants.length === 0
+        ? '[]'
+        : (updateProductDto.variants ? JSON.stringify(updateProductDto.variants) : null);
       updateFields.push(`variants = $${paramIndex}`);
-      updateValues.push(updateProductDto.variants ? JSON.stringify(updateProductDto.variants) : null);
+      updateValues.push(variantsValue);
       paramIndex++;
     }
 

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsBoolean, IsInt, IsEnum, Min, MaxLength } from 'class-validator';
+import { IsString, IsBoolean, IsInt, IsEnum, Min, MaxLength, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum ProductType {
   FOOD = 'food',
@@ -30,14 +31,13 @@ export class UpdateFieldConfigDto {
 }
 
 export class BulkUpdateFieldConfigDto {
-  @ApiProperty({ description: 'Tipo de producto', enum: ProductType })
-  @IsEnum(ProductType)
-  product_type: ProductType;
-
   @ApiProperty({ 
     description: 'Lista de configuraciones de campos a actualizar',
     type: [UpdateFieldConfigDto]
   })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateFieldConfigDto)
   field_configs: UpdateFieldConfigDto[];
 }
 

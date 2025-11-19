@@ -152,6 +152,34 @@ export default function ProductTypeFieldConfigManager() {
     return productTypes.find(t => t.value === value)?.label || value;
   };
 
+  // Seleccionar/deseleccionar todos los campos visibles
+  const toggleAllVisible = (selectAll: boolean) => {
+    setFieldConfigs(prevConfigs =>
+      prevConfigs.map(config => ({
+        ...config,
+        isVisible: selectAll,
+        // Si se deselecciona visible, también deseleccionar requerido
+        isRequired: selectAll ? config.isRequired : false,
+      }))
+    );
+    setHasChanges(true);
+  };
+
+  // Seleccionar/deseleccionar todos los campos requeridos (solo los visibles)
+  const toggleAllRequired = (selectAll: boolean) => {
+    setFieldConfigs(prevConfigs =>
+      prevConfigs.map(config => ({
+        ...config,
+        isRequired: config.isVisible ? selectAll : false,
+      }))
+    );
+    setHasChanges(true);
+  };
+
+  // Verificar si todos los campos visibles están seleccionados
+  const areAllVisible = sortedFieldConfigs.length > 0 && sortedFieldConfigs.every(c => c.isVisible);
+  const areAllRequired = sortedFieldConfigs.length > 0 && sortedFieldConfigs.filter(c => c.isVisible).every(c => c.isRequired);
+
   if (loading && !selectedProductType) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -240,8 +268,49 @@ export default function ProductTypeFieldConfigManager() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Campo</th>
-                <th className="px-4 py-3 text-center font-medium text-gray-700">Visible</th>
-                <th className="px-4 py-3 text-center font-medium text-gray-700">Requerido</th>
+                <th className="px-4 py-3 text-center font-medium text-gray-700">
+                  <div className="flex flex-col items-center gap-1">
+                    <span>Visible</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => toggleAllVisible(true)}
+                        className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors"
+                        title="Seleccionar todos"
+                      >
+                        Todos
+                      </button>
+                      <button
+                        onClick={() => toggleAllVisible(false)}
+                        className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        title="Deseleccionar todos"
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center font-medium text-gray-700">
+                  <div className="flex flex-col items-center gap-1">
+                    <span>Requerido</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => toggleAllRequired(true)}
+                        disabled={!areAllVisible}
+                        className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Seleccionar todos los visibles como requeridos"
+                      >
+                        Todos
+                      </button>
+                      <button
+                        onClick={() => toggleAllRequired(false)}
+                        className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        title="Deseleccionar todos"
+                      >
+                        Ninguno
+                      </button>
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-center font-medium text-gray-700">Orden</th>
               </tr>
             </thead>

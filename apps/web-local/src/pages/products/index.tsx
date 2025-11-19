@@ -16,7 +16,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showProductTypeSelection, setShowProductTypeSelection] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<ProductType | null>(null);
-  const [fieldConfig, setFieldConfig] = useState<Array<{ fieldName: string; isVisible: boolean; isRequired: boolean }>>([]);
+  const [fieldConfig, setFieldConfig] = useState<Array<{ fieldName: string; isVisible: boolean; isRequired: boolean; displayOrder?: number }>>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,6 +40,9 @@ export default function ProductsPage() {
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [allergens, setAllergens] = useState<string[]>([]);
   const [nutritionalInfo, setNutritionalInfo] = useState<Record<string, any>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'updated_at' | 'created_at'>('updated_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -105,38 +108,8 @@ export default function ProductsPage() {
   };
 
   const handleEdit = async (product: Product) => {
-    setEditingProduct(product);
-    
-    // Cargar configuración de campos para el tipo de producto
-    try {
-      const config = await productsService.getFieldConfigByProductType(product.product_type || 'food');
-      setFieldConfig(config);
-      setSelectedProductType(product.product_type || 'food');
-    } catch (err: any) {
-      console.error('Error obteniendo configuración de campos:', err);
-    }
-    
-    setFormData({
-      business_id: product.business_id,
-      name: product.name,
-      description: product.description || '',
-      image_url: product.image_url || '',
-      price: product.price,
-      product_type: product.product_type || 'food',
-      category_id: product.category_id || '',
-      is_available: product.is_available,
-      is_featured: product.is_featured,
-      display_order: product.display_order || 0,
-      requires_prescription: product.requires_prescription,
-      age_restriction: product.age_restriction,
-      max_quantity_per_order: product.max_quantity_per_order,
-      requires_pharmacist_validation: product.requires_pharmacist_validation,
-    });
-    setImagePreview(product.image_url || null);
-    setVariantGroups(product.variant_groups || []);
-    setAllergens(product.allergens || []);
-    setNutritionalInfo(product.nutritional_info || {});
-    setShowForm(true);
+    // Navegar a la página de detalle del producto con el ID en la URL
+    router.push(`/products/${product.id}`);
   };
 
   const resetForm = () => {
@@ -181,7 +154,7 @@ export default function ProductsPage() {
       const productData: CreateProductData = {
         ...formData,
         image_url: imageUrl,
-        variant_groups: variantGroups.length > 0 ? variantGroups : undefined,
+        variant_groups: variantGroups, // Enviar siempre, incluso si está vacío para poder eliminar grupos
         allergens: allergens.length > 0 ? allergens : undefined,
         nutritional_info: Object.keys(nutritionalInfo).length > 0 ? nutritionalInfo : undefined,
       };
@@ -215,17 +188,21 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDelete = async (productId: string) => {
-    if (!confirm('¿Estás seguro de que deseas desactivar este producto?')) {
+  const handleToggleAvailability = async (product: Product) => {
+    const action = product.is_available ? 'desactivar' : 'activar';
+    if (!confirm(`¿Estás seguro de que deseas ${action} este producto?`)) {
       return;
     }
 
     try {
-      await productsService.deleteProduct(productId);
+      await productsService.updateProduct({
+        id: product.id,
+        is_available: !product.is_available,
+      });
       await loadData();
     } catch (err: any) {
-      console.error('Error eliminando producto:', err);
-      setError('Error al eliminar el producto');
+      console.error(`Error ${action} producto:`, err);
+      setError(`Error al ${action} el producto`);
     }
   };
 
@@ -241,6 +218,27 @@ export default function ProductsPage() {
 
   // Verificar si el producto es de farmacia
   const isMedicine = formData.product_type === 'medicine';
+
+  // Filtrar y ordenar productos
+  const filteredAndSortedProducts = products
+    .filter((product) => {
+      if (!searchTerm) return true;
+      const search = searchTerm.toLowerCase();
+      return (
+        product.name.toLowerCase().includes(search) ||
+        (product.description && product.description.toLowerCase().includes(search)) ||
+        product.product_type.toLowerCase().includes(search)
+      );
+    })
+    .sort((a, b) => {
+      const aValue = sortBy === 'updated_at' ? a.updated_at : a.created_at;
+      const bValue = sortBy === 'updated_at' ? b.updated_at : b.created_at;
+      if (sortOrder === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
 
   if (loading) {
     return (
@@ -258,7 +256,7 @@ export default function ProductsPage() {
         <title>Productos - LOCALIA Local</title>
       </Head>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full h-full flex flex-col p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-lg font-medium text-gray-900">Productos</h1>
           {!showForm && (
@@ -328,67 +326,217 @@ export default function ProductsPage() {
             }}
           />
         ) : (
-          /* Lista de productos */
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded border border-gray-200 overflow-hidden"
-                >
-                  {product.image_url && (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-full h-48 object-cover"
-                    />
-                  )}
-                  <div className="p-4">
-                    <h3 className="text-sm font-medium text-gray-900">{product.name}</h3>
-                    {product.description && (
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
-                    )}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900">${product.price.toFixed(2)}</span>
-                      <span className={`px-2 py-0.5 text-xs font-normal rounded ${
-                        product.is_available
-                          ? 'bg-gray-100 text-gray-600'
-                          : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        {product.is_available ? 'Disponible' : 'No disponible'}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => handleEdit(product)}
-                        className="flex-1 px-3 py-1.5 text-xs font-normal border border-gray-200 text-gray-600 rounded hover:bg-gray-50 transition-colors"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="flex-1 px-3 py-1.5 text-xs font-normal border border-gray-200 text-gray-600 rounded hover:bg-gray-50 transition-colors"
-                      >
-                        Desactivar
-                      </button>
-                    </div>
-                  </div>
+          /* Lista de productos en tabla */
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Barra de búsqueda y filtros */}
+            <div className="mb-4 flex items-center gap-4">
+              <div className="flex-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 </div>
-              ))}
+                <input
+                  type="text"
+                  placeholder="Buscar Productos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-gray-400 focus:border-gray-400 text-sm"
+                />
+              </div>
             </div>
 
-            {products.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-sm text-gray-500">No hay productos registrados</p>
-                <button
-                  onClick={handleCreate}
-                  className="mt-4 px-3 py-1.5 text-sm font-normal bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
-                >
-                  Crear primer producto
-                </button>
+            {/* Tabla de productos */}
+            <div className="bg-white rounded border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0">
+              <div className="overflow-x-auto flex-1 min-h-0">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input type="checkbox" className="rounded border-gray-300 text-gray-600 focus:ring-gray-400" />
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Producto
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Disponibilidad
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Descripción
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Precio
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortBy === 'updated_at') {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy('updated_at');
+                            setSortOrder('desc');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          Last updated
+                          {sortBy === 'updated_at' && (
+                            <svg className={`h-4 w-4 ${sortOrder === 'asc' ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (sortBy === 'created_at') {
+                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy('created_at');
+                            setSortOrder('desc');
+                          }
+                        }}
+                      >
+                        Created at
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAndSortedProducts.map((product) => {
+                      const productTypeLabels: Record<ProductType, { label: string; color: string }> = {
+                        food: { label: 'Alimento', color: 'bg-blue-100 text-blue-800' },
+                        beverage: { label: 'Bebida', color: 'bg-cyan-100 text-cyan-800' },
+                        medicine: { label: 'Medicamento', color: 'bg-red-100 text-red-800' },
+                        grocery: { label: 'Abarrotes', color: 'bg-yellow-100 text-yellow-800' },
+                        non_food: { label: 'No Alimenticio', color: 'bg-gray-100 text-gray-800' },
+                      };
+                      const typeInfo = productTypeLabels[product.product_type] || { label: product.product_type, color: 'bg-gray-100 text-gray-800' };
+                      
+                      const formatDate = (dateString: string) => {
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('es-MX', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                      };
+
+                      return (
+                        <tr 
+                          key={product.id} 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={(e) => {
+                            // Evitar que el click en checkbox o botones active la navegación
+                            const target = e.target as HTMLElement;
+                            if (target.closest('input[type="checkbox"]') || target.closest('button') || target.closest('svg')) {
+                              return;
+                            }
+                            handleEdit(product);
+                          }}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" className="rounded border-gray-300 text-gray-600 focus:ring-gray-400" />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className={`h-2 w-2 rounded-full mr-2 ${product.is_available ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                              <span className="text-sm text-gray-600">{product.is_available ? 'Disponible' : 'No disponible'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-500 max-w-xs truncate">
+                              {product.description || '-'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">${product.price.toFixed(2)}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${typeInfo.color}`}>
+                              {typeInfo.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDate(product.updated_at)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatDate(product.created_at)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEdit(product)}
+                                className="text-gray-600 hover:text-gray-900"
+                                title="Editar"
+                              >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleToggleAvailability(product)}
+                                className={product.is_available ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900'}
+                                title={product.is_available ? 'Desactivar' : 'Activar'}
+                              >
+                                {product.is_available ? (
+                                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                  </svg>
+                                ) : (
+                                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </>
+
+              {filteredAndSortedProducts.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-sm text-gray-500">
+                    {searchTerm ? 'No se encontraron productos que coincidan con la búsqueda' : 'No hay productos registrados'}
+                  </p>
+                  {!searchTerm && (
+                    <button
+                      onClick={handleCreate}
+                      className="mt-4 px-3 py-1.5 text-sm font-normal bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
+                    >
+                      Crear primer producto
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {filteredAndSortedProducts.length > 0 && (
+                <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                  <div className="text-sm text-gray-500">
+                    No. of rows {filteredAndSortedProducts.length}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </LocalLayout>
@@ -448,7 +596,7 @@ function ProductTypeSelection({ onSelect, onCancel }: ProductTypeSelectionProps)
 }
 
 // Componente del formulario integrado
-interface ProductFormProps {
+export interface ProductFormProps {
   formData: CreateProductData;
   setFormData: React.Dispatch<React.SetStateAction<CreateProductData>>;
   categories: ProductCategory[];
@@ -464,12 +612,12 @@ interface ProductFormProps {
   isMedicine: boolean;
   editingProduct: Product | null;
   saving: boolean;
-  fieldConfig: Array<{ fieldName: string; isVisible: boolean; isRequired: boolean }>;
+  fieldConfig: Array<{ fieldName: string; isVisible: boolean; isRequired: boolean; displayOrder?: number }>;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }
 
-function ProductForm({
+export function ProductForm({
   formData,
   setFormData,
   categories,
@@ -494,8 +642,25 @@ function ProductForm({
 
   // Helper para verificar si un campo es visible
   const isFieldVisible = (fieldName: string): boolean => {
+    // Si no hay configuración cargada, retornar false por defecto
+    if (!fieldConfig || fieldConfig.length === 0) {
+      return false;
+    }
     const field = fieldConfig.find(f => f.fieldName === fieldName);
-    return field ? field.isVisible : true; // Por defecto visible si no hay configuración
+    // Si el campo está en la configuración, usar su valor de is_visible
+    // Si no está, asumir que NO es visible (más conservador)
+    return field ? field.isVisible : false;
+  };
+
+  // Helper para verificar si un campo es requerido
+  const isFieldRequired = (fieldName: string): boolean => {
+    const field = fieldConfig.find(f => f.fieldName === fieldName);
+    return field ? field.isRequired : false; // Por defecto no requerido si no hay configuración
+  };
+
+  // Obtener campos ordenados según display_order
+  const getOrderedFields = () => {
+    return [...fieldConfig].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
   };
 
   const addVariantGroup = () => {
@@ -570,126 +735,152 @@ function ProductForm({
           <div className="space-y-5">
             <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Información Básica</h3>
 
-            <div>
-              <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                Nombre <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                maxLength={255}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ej: Hamburguesa Clásica"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                Descripción
-              </label>
-              <textarea
-                rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe el producto..."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            {/* Nombre */}
+            {isFieldVisible('name') && (
               <div>
                 <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                  Tipo de Producto <span className="text-red-500">*</span>
+                  Nombre {isFieldRequired('name') && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="text"
-                  disabled
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded bg-gray-50 text-gray-600"
-                  value={productTypes.find(t => t.value === formData.product_type)?.label || formData.product_type}
+                  required={isFieldRequired('name')}
+                  maxLength={255}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ej: Hamburguesa Clásica"
                 />
-                <p className="text-xs text-gray-400 mt-1">Gestionado por administradores</p>
               </div>
+            )}
 
+            {/* Descripción */}
+            {isFieldVisible('description') && (
               <div>
-                <CategorySelector
-                  categories={categories}
-                  value={formData.category_id}
-                  onChange={(categoryId) => setFormData({ ...formData, category_id: categoryId })}
-                  required
-                  placeholder="Selecciona una categoría"
+                <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                  Descripción {isFieldRequired('description') && <span className="text-red-500">*</span>}
+                </label>
+                <textarea
+                  rows={3}
+                  required={isFieldRequired('description')}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Describe el producto..."
                 />
               </div>
-            </div>
+            )}
 
+            {/* Tipo de Producto y Categoría */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                  Precio <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="0.01"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-              </div>
+              {isFieldVisible('product_type') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Tipo de Producto {isFieldRequired('product_type') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    required={isFieldRequired('product_type')}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded bg-gray-50 text-gray-600"
+                    value={productTypes.find(t => t.value === formData.product_type)?.label || formData.product_type}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Gestionado por administradores</p>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                  Orden de Visualización
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                  value={formData.display_order}
-                  onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-              </div>
+              {isFieldVisible('category_id') && (
+                <div>
+                  <CategorySelector
+                    categories={categories}
+                    value={formData.category_id}
+                    onChange={(categoryId) => setFormData({ ...formData, category_id: categoryId })}
+                    required={isFieldRequired('category_id')}
+                    placeholder="Selecciona una categoría"
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-6">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                  checked={formData.is_available}
-                  onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
-                />
-                <span className="ml-2 text-sm text-gray-600">Disponible</span>
-              </label>
+            {/* Precio y Orden de Visualización */}
+            <div className="grid grid-cols-2 gap-4">
+              {isFieldVisible('price') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Precio {isFieldRequired('price') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="number"
+                    required={isFieldRequired('price')}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                  checked={formData.is_featured}
-                  onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
-                />
-                <span className="ml-2 text-sm text-gray-600">Destacado</span>
-              </label>
+              {isFieldVisible('display_order') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Orden de Visualización {isFieldRequired('display_order') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="number"
+                    required={isFieldRequired('display_order')}
+                    min="0"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    value={formData.display_order}
+                    onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Disponible y Destacado */}
+            <div className="flex gap-6">
+              {isFieldVisible('is_available') && (
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                    checked={formData.is_available}
+                    onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
+                  />
+                  <span className="ml-2 text-sm text-gray-600">Disponible</span>
+                </label>
+              )}
+
+              {isFieldVisible('is_featured') && (
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                    checked={formData.is_featured}
+                    onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                  />
+                  <span className="ml-2 text-sm text-gray-600">Destacado</span>
+                </label>
+              )}
             </div>
           </div>
 
           {/* Imagen */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Imagen del Producto</h3>
-            <ImageUpload
-              currentImageUrl={imagePreview || undefined}
-              onImageChange={onImageChange}
-              label="Imagen"
-            />
-          </div>
+          {isFieldVisible('image_url') && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Imagen del Producto</h3>
+              <ImageUpload
+                currentImageUrl={imagePreview || undefined}
+                onImageChange={onImageChange}
+                label="Imagen"
+              />
+            </div>
+          )}
 
-          {/* Variantes - Solo si el producto ya está creado */}
-          {editingProduct && (
+          {/* Variantes - Solo si el producto ya está creado y el campo es visible */}
+          {editingProduct && isFieldVisible('variant_groups') && (
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Variantes del Producto</h3>
@@ -750,7 +941,7 @@ function ProductForm({
                   </label>
 
                   <div className="space-y-2">
-                    {group.variants.map((variant, variantIndex) => (
+                    {(group.variants || []).map((variant, variantIndex) => (
                       <div key={variantIndex} className="flex gap-2 items-start p-2 bg-gray-50 rounded">
                         <div className="flex-1 grid grid-cols-3 gap-2">
                           <input
@@ -799,7 +990,7 @@ function ProductForm({
             </div>
           )}
           
-          {!editingProduct && (
+          {!editingProduct && isFieldVisible('variant_groups') && (
             <div className="p-4 bg-gray-50 border border-gray-200 rounded">
               <p className="text-sm text-gray-500">
                 Las variantes se pueden gestionar después de crear el producto.
@@ -884,51 +1075,65 @@ function ProductForm({
             <div>
               <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Información de Farmacia</h3>
               <div className="space-y-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                    checked={formData.requires_prescription || false}
-                    onChange={(e) => setFormData({ ...formData, requires_prescription: e.target.checked })}
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Requiere receta médica</span>
-                </label>
+                {isFieldVisible('requires_prescription') && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                      checked={formData.requires_prescription || false}
+                      onChange={(e) => setFormData({ ...formData, requires_prescription: e.target.checked })}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Requiere receta médica {isFieldRequired('requires_prescription') && <span className="text-red-500">*</span>}</span>
+                  </label>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-normal text-gray-600 mb-1.5">Restricción de Edad</label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                      value={formData.age_restriction || ''}
-                      onChange={(e) => setFormData({ ...formData, age_restriction: e.target.value ? parseInt(e.target.value) : undefined })}
-                      placeholder="Edad mínima (años)"
-                    />
-                  </div>
+                  {isFieldVisible('age_restriction') && (
+                    <div>
+                      <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                        Restricción de Edad {isFieldRequired('age_restriction') && <span className="text-red-500">*</span>}
+                      </label>
+                      <input
+                        type="number"
+                        required={isFieldRequired('age_restriction')}
+                        min="0"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                        value={formData.age_restriction || ''}
+                        onChange={(e) => setFormData({ ...formData, age_restriction: e.target.value ? parseInt(e.target.value) : undefined })}
+                        placeholder="Edad mínima (años)"
+                      />
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-xs font-normal text-gray-600 mb-1.5">Cantidad Máxima por Pedido</label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                      value={formData.max_quantity_per_order || ''}
-                      onChange={(e) => setFormData({ ...formData, max_quantity_per_order: e.target.value ? parseInt(e.target.value) : undefined })}
-                      placeholder="Cantidad máxima"
-                    />
-                  </div>
+                  {isFieldVisible('max_quantity_per_order') && (
+                    <div>
+                      <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                        Cantidad Máxima por Pedido {isFieldRequired('max_quantity_per_order') && <span className="text-red-500">*</span>}
+                      </label>
+                      <input
+                        type="number"
+                        required={isFieldRequired('max_quantity_per_order')}
+                        min="1"
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                        value={formData.max_quantity_per_order || ''}
+                        onChange={(e) => setFormData({ ...formData, max_quantity_per_order: e.target.value ? parseInt(e.target.value) : undefined })}
+                        placeholder="Cantidad máxima"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                    checked={formData.requires_pharmacist_validation || false}
-                    onChange={(e) => setFormData({ ...formData, requires_pharmacist_validation: e.target.checked })}
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Requiere validación de farmacéutico</span>
-                </label>
+                {isFieldVisible('requires_pharmacist_validation') && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                      checked={formData.requires_pharmacist_validation || false}
+                      onChange={(e) => setFormData({ ...formData, requires_pharmacist_validation: e.target.checked })}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Requiere validación de farmacéutico {isFieldRequired('requires_pharmacist_validation') && <span className="text-red-500">*</span>}</span>
+                  </label>
+                )}
               </div>
             </div>
           )}

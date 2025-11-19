@@ -28,11 +28,6 @@ export interface BulkUpdateFieldConfig {
   display_order: number;
 }
 
-export interface BulkUpdateRequest {
-  product_type: string;
-  field_configs: BulkUpdateFieldConfig[];
-}
-
 /**
  * Obtener todas las configuraciones de campos
  */
@@ -91,7 +86,6 @@ export async function bulkUpdateFieldConfig(
     {
       method: 'PUT',
       body: JSON.stringify({
-        product_type: productType,
         field_configs: fieldConfigs,
       }),
     }

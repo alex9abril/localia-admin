@@ -115,11 +115,6 @@ export class ProductTypeFieldConfigService {
         throw new BadRequestException(`Tipo de producto inválido: ${productType}`);
       }
 
-      // Verificar que el product_type en el DTO coincida con el parámetro
-      if (updateDto.product_type !== productType) {
-        throw new BadRequestException(`El tipo de producto en el body (${updateDto.product_type}) no coincide con el parámetro (${productType})`);
-      }
-
       // Iniciar transacción
       const client = await pool.connect();
 

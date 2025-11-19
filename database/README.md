@@ -143,12 +143,13 @@ Los archivos SQL están organizados por orden de creación y propósito. A conti
 #### 15.1. **`migration_product_type_field_config.sql`** 🆕
 **Descripción:** Configuración de campos por tipo de producto. Define qué campos del formulario deben mostrarse según el tipo de producto seleccionado (ej: alérgenos solo para alimentos, campos de farmacia solo para medicamentos).  
 **Contiene:** 
+- Verificación y creación automática del tipo `catalog.product_type` si no existe
 - Tabla `catalog.product_type_field_config` con configuración de visibilidad y requerimiento de campos
 - Función `catalog.get_product_type_field_config(product_type)` para obtener configuración
 - Datos iniciales para todos los tipos de producto (food, beverage, medicine, grocery, non_food)
-**Cuándo ejecutar:** Después de `migration_advanced_catalog_system.sql`, para configurar qué campos mostrar en el formulario.  
-**Dependencias:** `schema.sql`, `migration_advanced_catalog_system.sql`  
-**Nota:** Esta migración permite personalizar el formulario de productos según el tipo, evitando mostrar campos irrelevantes (ej: alérgenos para medicamentos).
+**Cuándo ejecutar:** Después de `schema.sql` (y opcionalmente `migration_advanced_catalog_system.sql`), para configurar qué campos mostrar en el formulario.  
+**Dependencias:** `schema.sql` (requerido), `migration_advanced_catalog_system.sql` (opcional, se crea automáticamente si falta)  
+**Nota:** Esta migración permite personalizar el formulario de productos según el tipo, evitando mostrar campos irrelevantes (ej: alérgenos para medicamentos). La migración es robusta y crea automáticamente el tipo `product_type` si no existe.
 
 #### 16. **`examples_advanced_catalog.sql`** 🆕
 **Descripción:** Ejemplos prácticos de uso del sistema avanzado de catálogos.  

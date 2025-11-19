@@ -127,6 +127,7 @@ Bienvenido a la documentación completa del proyecto LOCALIA. Esta documentació
 ### 20. [Sistema de Catálogos de Productos Avanzado](./20-sistema-catalogos-productos-avanzado.md)
 - Investigación de prácticas de plataformas de delivery (Uber Eats, Rappi, DoorDash)
 - Identificación de tipo de producto (alimento vs. no alimento)
+- **Configuración de campos por tipo de producto** (campos visibles/requeridos personalizables)
 - Sistema de modificadores y complementos (obligatorios/opcionales con costos extras)
 - Mejora de paquetes y combinaciones (cantidades fraccionarias, price_override)
 - Sistema de sugerencias y cross-selling (categoría → categoría, producto → producto)

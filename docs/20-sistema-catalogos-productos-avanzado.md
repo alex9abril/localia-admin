@@ -50,6 +50,199 @@ Este documento analiza estas prácticas y propone una implementación para Local
 }
 ```
 
+### 1.5. Configuración de Campos por Tipo de Producto
+
+#### Sistema Implementado
+
+**Descripción:**
+El sistema permite configurar qué campos del formulario de captura de productos se muestran y cuáles son requeridos según el tipo de producto. Esto personaliza la experiencia de captura y evita mostrar campos irrelevantes (ej: alérgenos para medicamentos, información nutricional para no alimenticios).
+
+**Beneficios:**
+- ✅ **Experiencia de usuario mejorada**: Solo se muestran campos relevantes
+- ✅ **Reducción de errores**: Evita que se completen campos incorrectos
+- ✅ **Cumplimiento legal**: Permite marcar campos obligatorios por tipo (ej: alérgenos en alimentos)
+- ✅ **Flexibilidad**: Los administradores pueden ajustar la configuración sin cambios de código
+- ✅ **Mantenibilidad**: Centraliza la lógica de visibilidad de campos
+
+**Tabla de Base de Datos:**
+```sql
+CREATE TABLE catalog.product_type_field_config (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_type catalog.product_type NOT NULL,
+    field_name VARCHAR(100) NOT NULL,
+    is_visible BOOLEAN DEFAULT TRUE,
+    is_required BOOLEAN DEFAULT FALSE,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(product_type, field_name)
+);
+```
+
+**Campos Configurables:**
+- `name` - Nombre del producto (siempre visible y requerido)
+- `description` - Descripción del producto
+- `image_url` - URL de imagen del producto
+- `price` - Precio del producto (siempre visible y requerido)
+- `category_id` - Categoría del producto (siempre visible y requerido)
+- `product_type` - Tipo de producto (siempre visible y requerido)
+- `is_available` - Disponible/No disponible
+- `is_featured` - Destacado
+- `display_order` - Orden de visualización
+- `variant_groups` - Grupos de variantes estructuradas
+- `allergens` - Alérgenos (solo alimentos/bebidas/abarrotes)
+- `nutritional_info` - Información nutricional (solo alimentos/bebidas/abarrotes)
+- `requires_prescription` - Requiere prescripción médica (solo medicamentos)
+- `age_restriction` - Restricción de edad mínima (solo medicamentos)
+- `max_quantity_per_order` - Cantidad máxima por pedido (solo medicamentos)
+- `requires_pharmacist_validation` - Requiere validación de farmacéutico (solo medicamentos)
+
+**Configuración Predefinida por Tipo:**
+
+1. **Alimentos (food):**
+   - ✅ Visible: nombre, descripción, imagen, precio, categoría, alérgenos, información nutricional, variantes
+   - ❌ Oculta: campos de farmacia
+   - ⚠️ Requerido: nombre, precio, categoría, tipo de producto
+
+2. **Bebidas (beverage):**
+   - ✅ Visible: nombre, descripción, imagen, precio, categoría, alérgenos, información nutricional, variantes
+   - ❌ Oculta: campos de farmacia
+   - ⚠️ Requerido: nombre, precio, categoría, tipo de producto
+
+3. **Medicamentos (medicine):**
+   - ✅ Visible: nombre, descripción, imagen, precio, categoría, campos de farmacia, variantes
+   - ❌ Oculta: alérgenos, información nutricional
+   - ⚠️ Requerido: nombre, precio, categoría, tipo de producto
+
+4. **Abarrotes (grocery):**
+   - ✅ Visible: nombre, descripción, imagen, precio, categoría, alérgenos, información nutricional, variantes
+   - ❌ Oculta: campos de farmacia
+   - ⚠️ Requerido: nombre, precio, categoría, tipo de producto
+
+5. **No Alimenticio (non_food):**
+   - ✅ Visible: nombre, descripción, imagen, precio, categoría, variantes
+   - ❌ Oculta: alérgenos, información nutricional, campos de farmacia
+   - ⚠️ Requerido: nombre, precio, categoría, tipo de producto
+
+**API Endpoints:**
+
+```typescript
+// Obtener configuración de campos por tipo de producto
+GET /api/catalog/products/field-config/:productType
+
+// Respuesta:
+[
+  {
+    "fieldName": "name",
+    "isVisible": true,
+    "isRequired": true,
+    "displayOrder": 1
+  },
+  {
+    "fieldName": "allergens",
+    "isVisible": false,
+    "isRequired": false,
+    "displayOrder": 11
+  },
+  // ... más campos
+]
+```
+
+**Gestión desde Admin (web-admin):**
+
+El componente de gestión permite:
+- Seleccionar un tipo de producto desde un dropdown
+- Ver todos los campos disponibles en una tabla
+- Configurar visibilidad de cada campo (checkbox "Visible")
+- Configurar requerimiento de cada campo (checkbox "Requerido")
+- Establecer el orden de visualización (input numérico)
+- Acciones rápidas: "Marcar todos visibles", "Marcar todos requeridos", etc.
+- Guardar cambios en bulk
+
+**Uso en Frontend (web-local):**
+
+1. **Al crear un nuevo producto:**
+   - El usuario primero selecciona el tipo de producto
+   - El sistema obtiene la configuración de campos para ese tipo
+   - El formulario se renderiza mostrando solo los campos visibles
+   - Los campos requeridos se marcan con asterisco (*)
+
+2. **Al editar un producto existente:**
+   - El sistema carga la configuración según el `product_type` del producto
+   - El formulario se adapta automáticamente
+
+3. **Lógica de visibilidad:**
+```typescript
+// Helper para verificar si un campo es visible
+const isFieldVisible = (fieldName: string): boolean => {
+  const field = fieldConfig.find(f => f.fieldName === fieldName);
+  return field ? field.isVisible : false; // Por defecto oculto si no hay configuración
+};
+
+// Uso en el formulario
+{isFieldVisible('allergens') && (
+  <div>
+    <h3>Alérgenos</h3>
+    {/* ... campos de alérgenos ... */}
+  </div>
+)}
+```
+
+**Ejemplo Práctico:**
+
+**Escenario:** Un negocio de farmacia quiere crear un medicamento.
+
+1. Selecciona tipo "Medicamento" en el formulario
+2. El sistema carga la configuración para `medicine`
+3. El formulario muestra:
+   - ✅ Campos básicos (nombre, descripción, precio, categoría)
+   - ✅ Campos de farmacia (prescripción, restricción de edad, validación)
+   - ❌ NO muestra: alérgenos, información nutricional
+4. El usuario completa solo los campos relevantes
+5. Guarda el producto
+
+**Escenario:** Un restaurante quiere crear una hamburguesa.
+
+1. Selecciona tipo "Alimento" en el formulario
+2. El sistema carga la configuración para `food`
+3. El formulario muestra:
+   - ✅ Campos básicos (nombre, descripción, precio, categoría)
+   - ✅ Alérgenos (gluten, lactosa, etc.)
+   - ✅ Información nutricional (calorías, proteínas, etc.)
+   - ❌ NO muestra: campos de farmacia
+4. El usuario completa los campos relevantes
+5. Guarda el producto
+
+**Migración:**
+- **Archivo:** `database/migration_product_type_field_config.sql`
+- **Dependencias:** 
+  - `schema.sql` (requerido)
+  - `migration_advanced_catalog_system.sql` (opcional, se crea automáticamente si falta el ENUM `product_type`)
+- **Datos iniciales:** Incluye configuraciones predefinidas para todos los tipos de producto (`food`, `beverage`, `medicine`, `grocery`, `non_food`)
+- **Función SQL:** `catalog.get_product_type_field_config(p_product_type)` - Devuelve TODOS los campos (visibles e invisibles) para un tipo de producto
+
+**Consideraciones Importantes:**
+
+1. **Alérgenos:** Son obligatorios legalmente en muchos países para alimentos. Se recomienda marcar `is_required: true` para `food` y `beverage` en producción.
+
+2. **Información Nutricional:** Es opcional pero puede ser un diferenciador. Se mantiene como opcional por defecto.
+
+3. **Campos de Farmacia:** Solo aplican a medicamentos. Son visibles pero no requeridos por defecto, permitiendo flexibilidad según regulaciones locales.
+
+4. **Variantes:** Solo se pueden gestionar después de crear el producto (para obtener el ID del producto).
+
+5. **Backend:** El servicio devuelve TODOS los campos (visibles e invisibles) para que el frontend pueda tomar decisiones informadas. Si un campo no está en la configuración, se asume que NO es visible.
+
+**Archivos Relacionados:**
+- **Migración:** `database/migration_product_type_field_config.sql`
+- **Backend Service:** `apps/backend/src/modules/catalog/products/products.service.ts` (método `getFieldConfigByProductType`)
+- **Backend Controller:** `apps/backend/src/modules/catalog/products/products.controller.ts` (endpoint `GET /field-config/:productType`)
+- **Frontend Service:** `apps/web-local/src/lib/products.ts` (método `getFieldConfigByProductType`)
+- **Frontend Form:** `apps/web-local/src/pages/products/index.tsx` (componente `ProductForm`)
+- **Admin Manager:** `apps/web-admin/src/components/catalog/ProductTypeFieldConfigManager.tsx` (gestión de configuración)
+
+---
+
 ### 2. Modificadores y Complementos
 
 #### Estructura Típica
@@ -998,18 +1191,33 @@ CREATE INDEX idx_suggestion_rules_trigger_type ON catalog.suggestion_rules(trigg
 - **Análisis de Tipos de Negocios:** `docs/17-analisis-tipos-negocios-alimentos.md`
 - **Gestión de Catálogos:** `docs/16-catalogos-gestion.md`
 - **API de Productos:** `apps/backend/src/modules/catalog/products/`
+- **API de Configuración de Campos:** `apps/backend/src/modules/catalog/product-type-field-config/`
+- **Componente de Gestión:** `apps/web-admin/src/components/catalog/ProductTypeFieldConfigManager.tsx`
+- **Migración:** `database/migration_product_type_field_config.sql`
 
 ---
 
 ## ✅ Checklist de Implementación
 
 ### Fase 1: Identificación de Tipo de Producto
-- [ ] Crear ENUM `product_type`
-- [ ] Agregar columna `product_type` a `catalog.products`
+- [x] Crear ENUM `product_type`
+- [x] Agregar columna `product_type` a `catalog.products`
 - [ ] Migrar datos existentes (todos como 'food' por defecto)
-- [ ] Actualizar DTOs y servicios
+- [x] Actualizar DTOs y servicios
 - [ ] Actualizar formularios en frontend
 - [ ] Agregar filtros por tipo de producto
+
+### Fase 1.5: Configuración de Campos por Tipo de Producto
+- [x] Crear tabla `catalog.product_type_field_config`
+- [x] Crear migración con datos iniciales
+- [x] Implementar servicio en backend
+- [x] Crear endpoints REST API
+- [x] Crear componente de gestión en web-admin
+- [x] Integrar en sección de catálogos
+- [x] Usar configuración en formulario de captura de productos (web-local)
+- [x] Implementar lógica de visibilidad dinámica en frontend
+- [x] Implementar lógica de campos requeridos dinámicos
+- [x] Documentar sistema completo
 
 ### Fase 2: Modificadores
 - [ ] Crear tablas `modifier_groups` y `modifier_options`

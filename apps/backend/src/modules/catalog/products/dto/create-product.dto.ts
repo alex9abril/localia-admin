@@ -27,7 +27,7 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({ description: 'URL de la imagen', example: 'https://example.com/product.jpg' })
   @IsOptional()
-  @IsUrl()
+  @IsString()
   image_url?: string;
 
   @ApiProperty({ description: 'Precio del producto', example: 120.00 })
@@ -42,7 +42,7 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({ description: 'ID de la categoría', example: '11111111-1111-1111-1111-111111111111' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   category_id?: string;
 
   @ApiPropertyOptional({ description: 'Disponible', example: true, default: true })
