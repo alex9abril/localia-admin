@@ -242,18 +242,55 @@ export class AuthService {
 
     console.log('✅ Cliente Supabase disponible, intentando registro...');
 
-    // Registrar usuario en Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: signUpDto.email,
-      password: signUpDto.password,
-      options: {
-        data: {
+    // Determinar el rol del usuario (default: 'client')
+    const platformRole = signUpDto.role || 'client';
+
+    // Para usuarios 'client', usar admin client para confirmar email automáticamente
+    // Para otros roles (local, admin, repartidor), usar signUp normal (requiere confirmación)
+    let authData: any;
+    let authError: any = null;
+    let session: any = null;
+
+    if (platformRole === 'client' && supabaseAdmin) {
+      // Usar admin client para crear usuario con email confirmado automáticamente
+      console.log('📧 Creando usuario client con email confirmado automáticamente...');
+      const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.createUser({
+        email: signUpDto.email,
+        password: signUpDto.password,
+        email_confirm: true, // Confirmar email automáticamente
+        user_metadata: {
           first_name: signUpDto.firstName,
           last_name: signUpDto.lastName,
           phone: signUpDto.phone,
         },
-      },
-    });
+      });
+
+      if (adminError) {
+        authError = adminError;
+      } else if (adminData.user) {
+        authData = { user: adminData.user };
+        // Para usuarios creados con admin, necesitamos crear una sesión manualmente
+        // o el usuario puede iniciar sesión normalmente después
+        console.log('✅ Usuario client creado con email confirmado');
+      }
+    } else {
+      // Para otros roles, usar signUp normal
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: signUpDto.email,
+        password: signUpDto.password,
+        options: {
+          data: {
+            first_name: signUpDto.firstName,
+            last_name: signUpDto.lastName,
+            phone: signUpDto.phone,
+          },
+        },
+      });
+
+      authData = signUpData;
+      authError = signUpError;
+      session = signUpData?.session;
+    }
 
     if (authError) {
       console.error('❌ Error en Supabase Auth:', authError);
@@ -264,7 +301,7 @@ export class AuthService {
       throw new BadRequestException(`Error al registrar usuario: ${authError.message}`);
     }
 
-    if (!authData.user) {
+    if (!authData || !authData.user) {
       console.error('❌ ERROR: authData.user es null');
       console.error('  authData:', JSON.stringify(authData, null, 2));
       throw new BadRequestException('No se pudo crear el usuario');
@@ -276,45 +313,76 @@ export class AuthService {
     if (dbPool) {
       console.log('✅ Creando perfil en core.user_profiles...');
       try {
-        // Los usuarios que se registran desde el formulario público siempre tienen rol 'local'
-        // El rol de negocio (superadmin, admin, etc.) se asigna después cuando crean o se les asigna un negocio
-        const platformRole = signUpDto.role === 'local' ? 'local' : (signUpDto.role || 'local');
-        
+        // Verificar si el teléfono ya existe antes de insertar
+        let phoneToInsert = signUpDto.phone || null;
+        if (phoneToInsert) {
+          const phoneCheck = await dbPool.query(
+            'SELECT id FROM core.user_profiles WHERE phone = $1',
+            [phoneToInsert]
+          );
+          if (phoneCheck.rows.length > 0) {
+            console.warn(`⚠️  El teléfono ${phoneToInsert} ya está en uso, se creará el perfil sin teléfono`);
+            phoneToInsert = null; // No insertar teléfono si ya existe
+          }
+        }
+
         await dbPool.query(
           `INSERT INTO core.user_profiles (id, role, first_name, last_name, phone, phone_verified, is_active)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             authData.user.id,
-            platformRole, // Siempre 'local' para usuarios que se registran desde el formulario público
+            platformRole,
             signUpDto.firstName,
             signUpDto.lastName,
-            signUpDto.phone,
+            phoneToInsert, // NULL si el teléfono ya existe o no se proporcionó
             false,
             true,
           ]
         );
-        console.log('✅ Perfil creado exitosamente en core.user_profiles');
+        console.log(`✅ Perfil creado exitosamente en core.user_profiles con rol: ${platformRole}`);
       } catch (profileError: any) {
         console.error('❌ Error creando perfil de usuario:', profileError);
         console.error('  Detalles:', profileError.message);
+        // Si el error es por teléfono duplicado, intentar sin teléfono
+        if (profileError.code === '23505' && profileError.constraint === 'user_profiles_phone_key') {
+          console.log('🔄 Reintentando crear perfil sin teléfono...');
+          try {
+            await dbPool.query(
+              `INSERT INTO core.user_profiles (id, role, first_name, last_name, phone, phone_verified, is_active)
+               VALUES ($1, $2, $3, $4, NULL, $5, $6)`,
+              [
+                authData.user.id,
+                platformRole,
+                signUpDto.firstName,
+                signUpDto.lastName,
+                false,
+                true,
+              ]
+            );
+            console.log(`✅ Perfil creado exitosamente sin teléfono (duplicado) con rol: ${platformRole}`);
+          } catch (retryError: any) {
+            console.error('❌ Error en reintento de creación de perfil:', retryError);
+            // No lanzamos error aquí para no bloquear el registro
+          }
+        }
         // No lanzamos error aquí para no bloquear el registro
       }
     } else {
       console.warn('⚠️  dbPool no está disponible, no se creará perfil en core.user_profiles');
     }
 
-    // Determinar si el usuario necesita confirmar su email
-    // Si no hay session, significa que Supabase requiere confirmación de email
-    const needsEmailConfirmation = !authData.session;
+    // Para usuarios 'client', el email ya está confirmado, así que pueden iniciar sesión inmediatamente
+    // Para otros roles, pueden necesitar confirmar email
+    const needsEmailConfirmation = platformRole !== 'client' && !session;
 
     return {
       user: authData.user,
-      session: authData.session,
-      accessToken: authData.session?.access_token || null,
-      refreshToken: authData.session?.refresh_token || null,
+      session: session || null,
+      accessToken: session?.access_token || null,
+      refreshToken: session?.refresh_token || null,
       message: needsEmailConfirmation
         ? 'Usuario registrado exitosamente. Por favor, verifica tu email para confirmar tu cuenta.'
-        : 'Usuario registrado exitosamente.',
+        : 'Usuario registrado exitosamente. Ya puedes iniciar sesión.',
       needsEmailConfirmation,
     };
   }
@@ -327,14 +395,62 @@ export class AuthService {
       throw new ServiceUnavailableException('Servicio de autenticación no configurado');
     }
 
+    console.log('🔍 Intentando iniciar sesión para:', signInDto.email);
+
+    // Verificar si el usuario existe y confirmar email si es necesario
+    if (supabaseAdmin && dbPool) {
+      try {
+        // Buscar usuario por email usando Supabase Admin
+        const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        
+        if (!usersError && usersData?.users) {
+          const user = usersData.users.find(u => u.email === signInDto.email);
+          
+          if (user) {
+            // Obtener perfil del usuario
+            const profileResult = await dbPool.query(
+              'SELECT role, is_active FROM core.user_profiles WHERE id = $1',
+              [user.id]
+            );
+            const profile = profileResult.rows[0];
+            
+            console.log('📋 Usuario encontrado:', {
+              id: user.id,
+              email: user.email,
+              email_confirmed: !!user.email_confirmed_at,
+              role: profile?.role,
+              is_active: profile?.is_active,
+            });
+            
+            // Si el email no está confirmado, intentar confirmarlo automáticamente para clientes
+            if (!user.email_confirmed_at && profile?.role === 'client') {
+              console.log('📧 Confirmando email automáticamente para cliente...');
+              try {
+                await supabaseAdmin.auth.admin.updateUserById(user.id, {
+                  email_confirm: true,
+                });
+                console.log('✅ Email confirmado automáticamente');
+              } catch (confirmError: any) {
+                console.error('⚠️  Error confirmando email:', confirmError);
+              }
+            }
+          }
+        }
+      } catch (checkError: any) {
+        console.error('⚠️  Error verificando usuario:', checkError);
+        // Continuar con el intento de login normal
+      }
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: signInDto.email,
       password: signInDto.password,
     });
 
     if (error) {
+      console.error('❌ Error en signIn:', error.message);
       if (error.message.includes('Invalid login credentials')) {
-        throw new UnauthorizedException('Credenciales inválidas');
+        throw new UnauthorizedException('Credenciales inválidas. Verifica tu email y contraseña.');
       }
       if (error.message.includes('Email not confirmed')) {
         throw new UnauthorizedException('Por favor verifica tu email antes de iniciar sesión');
@@ -343,8 +459,11 @@ export class AuthService {
     }
 
     if (!data.user || !data.session) {
+      console.error('❌ No se pudo obtener usuario o sesión');
       throw new UnauthorizedException('No se pudo iniciar sesión');
     }
+
+    console.log('✅ Sesión iniciada exitosamente para:', data.user.email);
 
     // Obtener perfil del usuario usando conexión directa
     let profile = null;
@@ -355,6 +474,9 @@ export class AuthService {
           [data.user.id]
         );
         profile = profileResult.rows[0] || null;
+        if (!profile) {
+          console.warn('⚠️  No se encontró perfil para el usuario:', data.user.id);
+        }
       } catch (e) {
         console.error('Error obteniendo perfil en signIn:', e);
       }

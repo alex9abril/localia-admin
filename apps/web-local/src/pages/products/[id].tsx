@@ -85,18 +85,34 @@ export default function ProductDetailPage() {
       setImagePreview(productData.image_url || null);
       
       // Asegurarse de que variant_groups sea un array y que cada grupo tenga su array de variants
+      // Mapear los nombres de campos del backend (variant_group_name, variant_name) a los que espera el frontend (name)
       let loadedVariantGroups = productData.variant_groups || [];
       if (Array.isArray(loadedVariantGroups)) {
-        // Asegurarse de que cada grupo tenga su array de variants
+        // Mapear los grupos y sus variantes
         loadedVariantGroups = loadedVariantGroups.map((group: any) => ({
-          ...group,
-          variants: Array.isArray(group.variants) ? group.variants : [],
+          id: group.variant_group_id || group.id,
+          name: group.variant_group_name || group.name || `Grupo ${group.display_order + 1}`,
+          description: group.description || '',
+          is_required: group.is_required || false,
+          selection_type: group.selection_type || 'single',
+          display_order: group.display_order || 0,
+          variants: Array.isArray(group.variants) 
+            ? group.variants.map((variant: any) => ({
+                id: variant.variant_id || variant.id,
+                name: variant.variant_name || variant.name || `Variante ${variant.display_order || 0}`,
+                description: variant.description || '',
+                price_adjustment: variant.price_adjustment || 0,
+                absolute_price: variant.absolute_price !== undefined && variant.absolute_price !== null ? variant.absolute_price : undefined,
+                is_available: variant.is_available !== undefined ? variant.is_available : true,
+                display_order: variant.display_order || 0,
+              }))
+            : [],
         }));
       } else {
         loadedVariantGroups = [];
       }
       
-      console.log('🔍 [FRONTEND] Cargando variant_groups:', JSON.stringify(loadedVariantGroups, null, 2));
+      console.log('🔍 [FRONTEND] Cargando variant_groups mapeados:', JSON.stringify(loadedVariantGroups, null, 2));
       setVariantGroups(loadedVariantGroups);
       setAllergens(productData.allergens || []);
       setNutritionalInfo(productData.nutritional_info || {});

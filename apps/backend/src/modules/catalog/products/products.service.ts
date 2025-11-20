@@ -223,12 +223,48 @@ export class ProductsService {
         p.*,
         b.name as business_name,
         pc.name as category_name,
-        pc.business_id as category_business_id
+        pc.display_order as category_display_order,
+        pc.business_id as category_business_id,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'variant_group_id', vg.id,
+              'variant_group_name', vg.name,
+              'description', vg.description,
+              'is_required', vg.is_required,
+              'selection_type', vg.selection_type,
+              'display_order', vg.display_order,
+              'variants', (
+                SELECT json_agg(
+                  json_build_object(
+                    'variant_id', v.id,
+                    'variant_name', v.name,
+                    'description', v.description,
+                    'price_adjustment', v.price_adjustment,
+                    'absolute_price', v.absolute_price,
+                    'is_available', v.is_available,
+                    'display_order', v.display_order
+                  ) ORDER BY v.display_order
+                )
+                FROM catalog.product_variants v
+                WHERE v.variant_group_id = vg.id
+                AND v.is_available = TRUE
+              )
+            ) ORDER BY vg.display_order
+          ) FILTER (WHERE vg.id IS NOT NULL),
+          '[]'::json
+        ) as variant_groups_structured
       FROM catalog.products p
       LEFT JOIN core.businesses b ON p.business_id = b.id
       LEFT JOIN catalog.product_categories pc ON p.category_id = pc.id
+      LEFT JOIN catalog.product_variant_groups vg ON vg.product_id = p.id
       ${whereClause}
-      ORDER BY ${orderByColumn} ${orderDirection}
+      GROUP BY p.id, p.business_id, p.name, p.description, p.image_url, p.price, p.product_type,
+               p.category_id, p.is_available, p.is_featured, p.variants, p.nutritional_info,
+               p.allergens, p.requires_prescription, p.age_restriction, p.max_quantity_per_order,
+               p.requires_pharmacist_validation, p.display_order, p.created_at, p.updated_at,
+               b.name, pc.name, pc.business_id, pc.display_order
+      ORDER BY COALESCE(pc.display_order, 999) ASC, ${orderByColumn} ${orderDirection}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -238,18 +274,60 @@ export class ProductsService {
 
       return {
         data: data.map(row => {
-          // Parsear variant_groups si es un string JSON o mantenerlo si ya es un objeto/array
-          let variantGroups = null;
+          // Parsear variant_groups estructuradas
+          let variantGroupsStructured = [];
+          if (row.variant_groups_structured) {
+            try {
+              variantGroupsStructured = Array.isArray(row.variant_groups_structured) 
+                ? row.variant_groups_structured 
+                : JSON.parse(row.variant_groups_structured);
+            } catch (e) {
+              console.error('Error parseando variant_groups_structured:', e);
+              variantGroupsStructured = [];
+            }
+          }
+
+          // Parsear variant_groups antiguo (JSONB) para compatibilidad
+          let variantGroupsLegacy = null;
           if (row.variants) {
             if (typeof row.variants === 'string') {
               try {
-                variantGroups = JSON.parse(row.variants);
+                variantGroupsLegacy = JSON.parse(row.variants);
               } catch (e) {
                 console.error('Error parseando variants JSON:', e);
-                variantGroups = null;
+                variantGroupsLegacy = null;
               }
             } else {
-              variantGroups = row.variants;
+              variantGroupsLegacy = row.variants;
+            }
+          }
+
+          // Usar variantes estructuradas si existen, sino convertir legacy
+          let variantGroups = variantGroupsStructured;
+          
+          if (variantGroups.length === 0 && variantGroupsLegacy) {
+            // Convertir formato legacy a formato estructurado
+            if (Array.isArray(variantGroupsLegacy)) {
+              variantGroups = variantGroupsLegacy.map((group: any, index: number) => {
+                const groupId = group.variant_group_id || `legacy-${index}`;
+                return {
+                  variant_group_id: groupId,
+                  variant_group_name: group.name || group.variant_group_name || `Grupo ${index + 1}`,
+                  description: group.description || null,
+                  is_required: group.is_required || false,
+                  selection_type: group.selection_type || 'single',
+                  display_order: group.display_order || index,
+                  variants: (group.variants || []).map((variant: any, vIndex: number) => ({
+                    variant_id: variant.variant_id || `${groupId}-${vIndex}`,
+                    variant_name: variant.name || variant.variant_name || `Variante ${vIndex + 1}`,
+                    description: variant.description || null,
+                    price_adjustment: variant.price_adjustment || 0,
+                    absolute_price: variant.absolute_price || null,
+                    is_available: variant.is_available !== undefined ? variant.is_available : true,
+                    display_order: variant.display_order || vIndex,
+                  })),
+                };
+              });
             }
           }
 
@@ -261,16 +339,16 @@ export class ProductsService {
             description: row.description,
             image_url: row.image_url,
             price: parseFloat(row.price),
-            product_type: row.product_type || 'food', // Valor por defecto para productos existentes
+            product_type: row.product_type || 'food',
             category_id: row.category_id,
             category_name: row.category_name,
+            category_display_order: row.category_display_order || 999,
             is_available: row.is_available,
             is_featured: row.is_featured,
-            variants: variantGroups,
-            variant_groups: variantGroups || [], // Siempre retornar array, nunca null
+            variants: variantGroupsLegacy,
+            variant_groups: variantGroups, // Usar variantes estructuradas
             nutritional_info: row.nutritional_info,
             allergens: row.allergens || [],
-            // Campos de farmacia
             requires_prescription: row.requires_prescription || false,
             age_restriction: row.age_restriction || null,
             max_quantity_per_order: row.max_quantity_per_order || null,
@@ -312,11 +390,46 @@ export class ProductsService {
         p.*,
         b.name as business_name,
         pc.name as category_name,
-        pc.business_id as category_business_id
+        pc.business_id as category_business_id,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'variant_group_id', vg.id,
+              'variant_group_name', vg.name,
+              'description', vg.description,
+              'is_required', vg.is_required,
+              'selection_type', vg.selection_type,
+              'display_order', vg.display_order,
+              'variants', (
+                SELECT json_agg(
+                  json_build_object(
+                    'variant_id', v.id,
+                    'variant_name', v.name,
+                    'description', v.description,
+                    'price_adjustment', v.price_adjustment,
+                    'absolute_price', v.absolute_price,
+                    'is_available', v.is_available,
+                    'display_order', v.display_order
+                  ) ORDER BY v.display_order
+                )
+                FROM catalog.product_variants v
+                WHERE v.variant_group_id = vg.id
+                AND v.is_available = TRUE
+              )
+            ) ORDER BY vg.display_order
+          ) FILTER (WHERE vg.id IS NOT NULL),
+          '[]'::json
+        ) as variant_groups_structured
       FROM catalog.products p
       LEFT JOIN core.businesses b ON p.business_id = b.id
       LEFT JOIN catalog.product_categories pc ON p.category_id = pc.id
+      LEFT JOIN catalog.product_variant_groups vg ON vg.product_id = p.id
       WHERE p.id = $1
+      GROUP BY p.id, p.business_id, p.name, p.description, p.image_url, p.price, p.product_type,
+               p.category_id, p.is_available, p.is_featured, p.variants, p.nutritional_info,
+               p.allergens, p.requires_prescription, p.age_restriction, p.max_quantity_per_order,
+               p.requires_pharmacist_validation, p.display_order, p.created_at, p.updated_at,
+               b.name, pc.name, pc.business_id
     `;
 
     try {
@@ -328,24 +441,124 @@ export class ProductsService {
 
       const row = result.rows[0];
 
-      // Parsear variant_groups si es un string JSON o mantenerlo si ya es un objeto/array
-      let variantGroups = null;
+      // Parsear variant_groups estructuradas
+      let variantGroupsStructured = [];
+      if (row.variant_groups_structured) {
+        try {
+          variantGroupsStructured = Array.isArray(row.variant_groups_structured) 
+            ? row.variant_groups_structured 
+            : JSON.parse(row.variant_groups_structured);
+        } catch (e) {
+          console.error('Error parseando variant_groups_structured:', e);
+          variantGroupsStructured = [];
+        }
+      }
+
+      // Parsear variant_groups antiguo (JSONB) para compatibilidad
+      let variantGroupsLegacy = null;
       if (row.variants) {
+        console.log('🔍 Campo variants encontrado:', {
+          type: typeof row.variants,
+          isArray: Array.isArray(row.variants),
+          value: JSON.stringify(row.variants).substring(0, 200),
+        });
+        
         if (typeof row.variants === 'string') {
           try {
-            variantGroups = JSON.parse(row.variants);
-            console.log('🔍 Parseando variants desde string:', variantGroups);
+            variantGroupsLegacy = JSON.parse(row.variants);
+            console.log('✅ Variants parseado desde string');
           } catch (e) {
-            console.error('Error parseando variants JSON:', e);
-            variantGroups = null;
+            console.error('❌ Error parseando variants JSON:', e);
+            variantGroupsLegacy = null;
           }
         } else {
-          variantGroups = row.variants;
-          console.log('🔍 Variants ya es objeto/array:', JSON.stringify(variantGroups, null, 2));
+          variantGroupsLegacy = row.variants;
+          console.log('✅ Variants ya es objeto/array');
         }
       } else {
-        console.log('🔍 No hay variants en row.variants');
+        console.log('⚠️  No hay campo variants en row');
       }
+
+      // Convertir formato legacy a formato estructurado si es necesario
+      let variantGroups = variantGroupsStructured;
+      
+      if (variantGroups.length === 0 && variantGroupsLegacy) {
+        console.log('🔄 Convirtiendo formato legacy a estructurado...');
+        
+        // El formato legacy puede venir como array de objetos con estructura:
+        // [{ name: "Grupo", variants: [{ name: "Variante", ... }], ... }]
+        if (Array.isArray(variantGroupsLegacy)) {
+          variantGroups = variantGroupsLegacy.map((group: any, index: number) => {
+            // Generar IDs temporales si no existen
+            const groupId = group.variant_group_id || `legacy-${index}`;
+            
+            return {
+              variant_group_id: groupId,
+              variant_group_name: group.name || group.variant_group_name || `Grupo ${index + 1}`,
+              description: group.description || null,
+              is_required: group.is_required || false,
+              selection_type: group.selection_type || 'single',
+              display_order: group.display_order || index,
+              variants: (group.variants || []).map((variant: any, vIndex: number) => ({
+                variant_id: variant.variant_id || `${groupId}-${vIndex}`,
+                variant_name: variant.name || variant.variant_name || `Variante ${vIndex + 1}`,
+                description: variant.description || null,
+                price_adjustment: variant.price_adjustment || 0,
+                absolute_price: variant.absolute_price || null,
+                is_available: variant.is_available !== undefined ? variant.is_available : true,
+                display_order: variant.display_order || vIndex,
+              })),
+            };
+          });
+        } else if (typeof variantGroupsLegacy === 'object') {
+          // Formato legacy como objeto: { "Tamaño": ["pequeño", "mediano"], ... }
+          variantGroups = Object.entries(variantGroupsLegacy).map(([groupName, variants]: [string, any], index: number) => {
+            const groupId = `legacy-${index}`;
+            const variantArray = Array.isArray(variants) ? variants : [];
+            
+            return {
+              variant_group_id: groupId,
+              variant_group_name: groupName,
+              description: null,
+              is_required: false,
+              selection_type: 'single',
+              display_order: index,
+              variants: variantArray.map((variant: any, vIndex: number) => {
+                // Si es string, crear objeto básico
+                if (typeof variant === 'string') {
+                  return {
+                    variant_id: `${groupId}-${vIndex}`,
+                    variant_name: variant,
+                    description: null,
+                    price_adjustment: 0,
+                    absolute_price: null,
+                    is_available: true,
+                    display_order: vIndex,
+                  };
+                }
+                // Si ya es objeto, mapear campos
+                return {
+                  variant_id: variant.variant_id || `${groupId}-${vIndex}`,
+                  variant_name: variant.name || variant.variant_name || `Variante ${vIndex + 1}`,
+                  description: variant.description || null,
+                  price_adjustment: variant.price_adjustment || 0,
+                  absolute_price: variant.absolute_price || null,
+                  is_available: variant.is_available !== undefined ? variant.is_available : true,
+                  display_order: variant.display_order || vIndex,
+                };
+              }),
+            };
+          });
+        }
+        
+        console.log('✅ Variantes legacy convertidas:', variantGroups.length);
+      }
+
+      console.log('🔍 Variantes encontradas:', {
+        structured: variantGroupsStructured.length,
+        legacy: variantGroupsLegacy ? (Array.isArray(variantGroupsLegacy) ? variantGroupsLegacy.length : Object.keys(variantGroupsLegacy).length) : 0,
+        final: variantGroups.length,
+      });
 
       return {
         id: row.id,
@@ -360,8 +573,8 @@ export class ProductsService {
         category_name: row.category_name,
         is_available: row.is_available,
         is_featured: row.is_featured,
-        variants: variantGroups,
-        variant_groups: variantGroups || [], // Siempre retornar array, nunca null
+        variants: variantGroupsLegacy, // Mantener para compatibilidad
+        variant_groups: variantGroups, // Usar estructuradas si existen
         nutritional_info: row.nutritional_info,
         allergens: row.allergens || [],
         // Campos de farmacia

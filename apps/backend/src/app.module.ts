@@ -14,8 +14,12 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { CategoriesModule } from './modules/catalog/categories/categories.module';
 import { ProductsModule } from './modules/catalog/products/products.module';
 import { ProductTypeFieldConfigModule } from './modules/catalog/product-type-field-config/product-type-field-config.module';
+import { TaxesModule } from './modules/catalog/taxes/taxes.module';
 import { ServiceRegionsModule } from './modules/service-regions/service-regions.module';
 import { BusinessUsersModule } from './modules/business-users/business-users.module';
+import { CartModule } from './modules/cart/cart.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -28,10 +32,13 @@ import { BusinessUsersModule } from './modules/business-users/business-users.mod
     CategoriesModule,
     ProductsModule,
     ProductTypeFieldConfigModule,
+    TaxesModule,
     ServiceRegionsModule,
     BusinessUsersModule,
+    CartModule,
+    AddressesModule,
+    OrdersModule,
     // Otros módulos se agregarán aquí
-    // OrdersModule,
     // UsersModule,
     // etc.
   ],

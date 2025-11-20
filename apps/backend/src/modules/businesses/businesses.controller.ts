@@ -157,6 +157,29 @@ export class BusinessesController {
     return this.businessesService.getStatistics();
   }
 
+  @Get('nearest')
+  @Public()
+  @ApiOperation({ summary: 'Obtener negocio más cercano a una ubicación' })
+  @ApiQuery({ name: 'latitude', description: 'Latitud', type: Number, required: true })
+  @ApiQuery({ name: 'longitude', description: 'Longitud', type: Number, required: true })
+  @ApiQuery({ name: 'businessId', description: 'ID del negocio (opcional)', type: String, required: false })
+  @ApiResponse({ status: 200, description: 'Negocio más cercano obtenido exitosamente' })
+  @ApiResponse({ status: 404, description: 'No se encontró ningún negocio cercano' })
+  async findNearest(
+    @Query('latitude') latitude: string,
+    @Query('longitude') longitude: string,
+    @Query('businessId') businessId?: string,
+  ) {
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      throw new BadRequestException('Latitud y longitud deben ser números válidos');
+    }
+
+    return this.businessesService.findNearest(lat, lon, businessId);
+  }
+
   @Get(':id')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Obtener un negocio por ID' })

@@ -131,3 +131,12 @@ SELECT ST_X(location) FROM core.businesses; -- FALLA, usar (location)[0] en su l
 - Para nuevos campos, verifica si hay triggers o funciones que los afecten
 - Para relaciones, verifica las foreign keys y constraints en `schema.sql`
 
+## ⚠️ IMPORTANTE: Ejecución de Scripts SQL
+
+**NUNCA ejecutes scripts SQL directamente en la base de datos.** 
+
+- El usuario es el único responsable de ejecutar todos los scripts SQL
+- Solo crea, modifica o corrige los archivos SQL según las instrucciones del usuario
+- NO uses herramientas para ejecutar comandos SQL en la base de datos
+- NO propongas ejecutar scripts SQL, solo crea o corrige los archivos
+

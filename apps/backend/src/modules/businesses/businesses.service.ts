@@ -1490,5 +1490,68 @@ export class BusinessesService {
       { name: 'Otro', description: 'Otras categorías de negocios' },
     ];
   }
+
+  /**
+   * Obtener negocio más cercano a una ubicación
+   */
+  async findNearest(latitude: number, longitude: number, businessId?: string) {
+    if (!dbPool) {
+      throw new ServiceUnavailableException('Conexión a base de datos no configurada');
+    }
+
+    try {
+      // Convertir POINT a geography correctamente
+      // Necesitamos extraer las coordenadas del POINT y crear un geography point
+      let query = `
+        SELECT 
+          id,
+          name,
+          logo_url,
+          category,
+          (location)[0] as longitude,
+          (location)[1] as latitude,
+          ST_Distance(
+            ST_SetSRID(
+              ST_MakePoint(
+                (location)[0]::DOUBLE PRECISION,
+                (location)[1]::DOUBLE PRECISION
+              )::geography,
+              4326
+            ),
+            ST_SetSRID(
+              ST_MakePoint($1, $2)::geography,
+              4326
+            )
+          ) / 1000 as distance_km
+        FROM core.businesses
+        WHERE is_active = TRUE AND accepts_orders = TRUE
+          AND location IS NOT NULL
+      `;
+      const params: any[] = [longitude, latitude];
+
+      if (businessId) {
+        query += ` AND id = $3`;
+        params.push(businessId);
+      }
+
+      query += ` ORDER BY distance_km ASC LIMIT 1`;
+
+      console.log('🔍 Buscando negocio más cercano:', { latitude, longitude, businessId });
+      const result = await dbPool.query(query, params);
+      console.log('✅ Negocio más cercano encontrado:', result.rows[0]?.name || 'Ninguno');
+
+      if (result.rows.length === 0) {
+        throw new NotFoundException('No se encontró ningún negocio cercano');
+      }
+
+      return result.rows[0];
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error('❌ Error obteniendo negocio más cercano:', error);
+      throw new ServiceUnavailableException(`Error al obtener negocio más cercano: ${error.message}`);
+    }
+  }
 }
 
