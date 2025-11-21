@@ -68,166 +68,83 @@ Entregar un sistema funcional end-to-end que permita:
 
 ---
 
-## 🔄 Diagrama de Procesos Principal (BPMN 2.0)
+## 🔄 Diagrama de Procesos Principal
 
 ### Flujo Completo: Cliente → Local → Repartidor
 
-Este diagrama sigue el estándar **BPMN 2.0** (Business Process Model and Notation) con:
-- **Pools (Piscinas)**: Representan participantes/organizaciones independientes
-- **Lanes (Carriles)**: Representan roles dentro de un participante
-- **Eventos**: Círculos (inicio/fin)
-- **Tareas**: Rectángulos con esquinas redondeadas
-- **Gateways**: Diamantes (decisiones)
-- **Mensajes**: Líneas punteadas entre pools
-
 ```mermaid
-graph LR
-    subgraph PoolCliente["POOL: CLIENTE"]
-        direction LR
-        Start([● Inicio<br/>Cliente inicia sesión])
-        Browse[Explorar negocios]
-        Select[Seleccionar productos]
-        Cart[Agregar al carrito]
-        Checkout[Iniciar checkout]
-        Address[Seleccionar dirección]
-        Delivery[Configurar entrega]
-        Payment[Seleccionar pago]
-        Review[Dejar reseña]
-        End([● Fin<br/>Pedido entregado])
-        
-        Start --> Browse
-        Browse --> Select
-        Select --> Cart
-        Cart --> Checkout
-        Checkout --> Address
-        Address --> Delivery
-        Delivery --> Payment
-        Payment --> Review
-        Review --> End
-    end
+graph TB
+    Start([Cliente inicia sesión]) --> Browse[Explorar negocios disponibles]
+    Browse --> Select[Seleccionar negocio y productos]
+    Select --> Cart[Agregar al carrito]
+    Cart --> Checkout[Proceso de checkout]
     
-    subgraph PoolPasarela["POOL: PASARELA DE PAGOS"]
-        direction LR
-        StartPasarela([● Inicio])
-        CreatePayment[Crear intención]
-        ProcessCard[Procesar tarjeta]
-        ConfirmPayment[Confirmar pago]
-        EndPasarela([● Fin])
-        
-        StartPasarela --> CreatePayment
-        CreatePayment --> ProcessCard
-        ProcessCard --> ConfirmPayment
-        ConfirmPayment --> EndPasarela
-    end
+    Checkout --> Address[Seleccionar dirección de entrega]
+    Address --> Delivery[Configurar entrega y propina]
+    Delivery --> Payment[Seleccionar método de pago]
     
-    subgraph PoolWallet["POOL: WALLET"]
-        direction LR
-        CheckBalance[Verificar balance]
-        CreditLC[Acreditar LCs]
-        DebitLC[Debitar LCs]
-        RefundLC[Reembolsar]
-        PayLocal[Pagar Local]
-        PayRepartidor[Pagar Repartidor]
-        PayTip[Pagar propina]
-    end
+    Payment --> WalletCheck{¿Tiene LocalCoins<br/>suficientes?}
+    WalletCheck -->|No| BuyLC[Comprar LocalCoins<br/>via Pasarela de Pagos]
+    BuyLC --> WalletAPI[Wallet: Acreditar LCs]
+    WalletCheck -->|Sí| ProcessPayment[Procesar pago con LCs]
+    BuyLC --> ProcessPayment
     
-    subgraph PoolLocal["POOL: NEGOCIO LOCAL"]
-        direction LR
-        ReceiveOrder[Recibir pedido]
-        ViewOrder[Ver pedido]
-        AcceptDecision{◇ ¿Acepta?}
-        CancelOrder[Cancelar]
-        ConfirmOrder[Confirmar]
-        NotifyClient[Notificar]
-        
-        subgraph LaneOperations["LANE: Operations"]
-            OperationsView[Ver orden]
-            OperationsPrep[Preparar]
-            OperationsReady[Listo]
-        end
-        
-        subgraph LaneKitchen["LANE: Kitchen (Opcional)"]
-            KitchenView[Ver orden]
-            StartPrep[Iniciar prep]
-            FinishPrep[Terminar prep]
-        end
-        
-        AssignRepartidor[Asignar]
-        MarkPickedUp[Recogido]
-        MarkDelivered[Entregado]
-        
-        ReceiveOrder --> ViewOrder
-        ViewOrder --> AcceptDecision
-        AcceptDecision -->|No| CancelOrder
-        AcceptDecision -->|Sí| ConfirmOrder
-        ConfirmOrder --> NotifyClient
-        ConfirmOrder --> OperationsView
-        ConfirmOrder --> KitchenView
-        OperationsView --> OperationsPrep
-        KitchenView --> StartPrep
-        StartPrep --> FinishPrep
-        OperationsPrep --> OperationsReady
-        FinishPrep --> OperationsReady
-        OperationsReady --> AssignRepartidor
-    end
+    ProcessPayment --> WalletAPI2[Wallet: Debitar LCs<br/>del cliente]
+    WalletAPI2 --> CreateOrder[Crear pedido<br/>Estado: PENDING]
     
-    subgraph PoolRepartidor["POOL: REPARTIDOR"]
-        direction LR
-        ViewAvailable[Ver disponibles]
-        AcceptDelivery{◇ ¿Acepta?}
-        PickUp[Recoger]
-        InTransit[En camino]
-        Deliver[Entregar]
-        
-        ViewAvailable --> AcceptDelivery
-        AcceptDelivery -->|No| ViewAvailable
-        AcceptDelivery -->|Sí| PickUp
-        PickUp --> InTransit
-        InTransit --> Deliver
-    end
+    CreateOrder --> NotifyLocal[Notificar al Local]
+    NotifyLocal --> LocalView[Local ve pedido pendiente]
     
-    %% Flujo principal de pago
-    Payment -.->|Mensaje| CheckBalance
-    CheckBalance -->|Insuficiente| StartPasarela
-    StartPasarela -.->|Mensaje| Payment
-    EndPasarela -.->|Mensaje| CreditLC
-    CheckBalance -->|Suficiente| DebitLC
-    CreditLC --> DebitLC
+    LocalView --> AcceptOrder{¿Acepta pedido?}
+    AcceptOrder -->|No| CancelOrder[Cancelar pedido<br/>Estado: CANCELLED]
+    CancelOrder --> Refund[Wallet: Reembolsar LCs]
+    Refund --> EndCancel([Fin: Pedido cancelado])
     
-    %% Creación de pedido
-    DebitLC -.->|Mensaje| ReceiveOrder
-    CancelOrder -.->|Mensaje| RefundLC
-    RefundLC -.->|Mensaje| Payment
+    AcceptOrder -->|Sí| ConfirmOrder[Confirmar pedido<br/>Estado: CONFIRMED]
+    ConfirmOrder --> NotifyClient[Notificar cliente]
     
-    %% Asignación a repartidor
-    AssignRepartidor -.->|Mensaje| ViewAvailable
-    PickUp -.->|Mensaje| MarkPickedUp
-    Deliver -.->|Mensaje| MarkDelivered
+    ConfirmOrder --> Kitchen{¿Rol Kitchen Staff?}
+    Kitchen -->|Sí| KitchenView[Kitchen ve orden confirmada]
+    KitchenView --> StartPrep[Iniciar preparación<br/>Estado: PREPARING]
+    StartPrep --> FinishPrep[Terminar preparación<br/>Estado: READY]
+    FinishPrep --> ReadyNotify[Notificar: Orden lista]
     
-    %% Pagos finales
-    MarkDelivered -.->|Mensaje| PayLocal
-    MarkDelivered -.->|Mensaje| PayRepartidor
-    MarkDelivered -.->|Mensaje| PayTip
+    Kitchen -->|No| OperationsView[Operations ve orden]
+    OperationsView --> OperationsPrep[Poner en preparación<br/>Estado: PREPARING]
+    OperationsPrep --> OperationsReady[Marcar como listo<br/>Estado: READY]
     
-    %% Finalización
-    PayLocal -.->|Mensaje| Review
-    PayRepartidor -.->|Mensaje| Review
-    PayTip -.->|Mensaje| Review
+    ReadyNotify --> AssignRepartidor[Asignar a Repartidor]
+    OperationsReady --> AssignRepartidor
     
-    %% Estilos sutiles
+    AssignRepartidor --> RepartidorView[Repartidor ve pedido disponible]
+    RepartidorView --> AcceptDelivery{¿Acepta entrega?}
+    AcceptDelivery -->|No| WaitRepartidor[Esperar otro repartidor]
+    WaitRepartidor --> RepartidorView
+    
+    AcceptDelivery -->|Sí| PickUp[Recoger pedido<br/>Estado: PICKED_UP]
+    PickUp --> InTransit[En camino<br/>Estado: IN_TRANSIT]
+    InTransit --> Deliver[Entregar pedido<br/>Estado: DELIVERED]
+    
+    Deliver --> WalletPayLocal[Wallet: Pagar al Local]
+    Deliver --> WalletPayRepartidor[Wallet: Pagar al Repartidor]
+    Deliver --> WalletPayTip[Wallet: Pagar propina]
+    
+    WalletPayLocal --> CompleteOrder[Pedido completado]
+    WalletPayRepartidor --> CompleteOrder
+    WalletPayTip --> CompleteOrder
+    
+    CompleteOrder --> Review[Cliente puede dejar reseña]
+    Review --> End([Fin: Pedido entregado])
+    
     style Start fill:#f5f5f5,stroke:#333,stroke-width:2px
     style End fill:#f5f5f5,stroke:#333,stroke-width:2px
-    style StartPasarela fill:#f5f5f5,stroke:#333,stroke-width:2px
-    style EndPasarela fill:#f5f5f5,stroke:#333,stroke-width:2px
-    style AcceptDecision fill:#e8e8e8,stroke:#666,stroke-width:2px
-    style AcceptDelivery fill:#e8e8e8,stroke:#666,stroke-width:2px
-    style PoolWallet fill:#fafafa,stroke:#999,stroke-width:2px
-    style PoolPasarela fill:#fafafa,stroke:#999,stroke-width:2px
-    style PoolCliente fill:#fafafa,stroke:#999,stroke-width:2px
-    style PoolLocal fill:#fafafa,stroke:#999,stroke-width:2px
-    style PoolRepartidor fill:#fafafa,stroke:#999,stroke-width:2px
-    style LaneOperations fill:#f0f0f0,stroke:#bbb,stroke-width:1px
-    style LaneKitchen fill:#f0f0f0,stroke:#bbb,stroke-width:1px
+    style EndCancel fill:#f0f0f0,stroke:#999,stroke-width:2px
+    style WalletAPI fill:#f5f5f5,stroke:#666,stroke-width:1px
+    style WalletAPI2 fill:#f5f5f5,stroke:#666,stroke-width:1px
+    style WalletPayLocal fill:#f5f5f5,stroke:#666,stroke-width:1px
+    style WalletPayRepartidor fill:#f5f5f5,stroke:#666,stroke-width:1px
+    style WalletPayTip fill:#f5f5f5,stroke:#666,stroke-width:1px
+    style Refund fill:#f0f0f0,stroke:#999,stroke-width:1px
 ```
 
 ---
