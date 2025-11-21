@@ -68,89 +68,68 @@
 
 ---
 
-## Reglas de Promociones y Descuentos
-
-35. ¿Hay límite en la cantidad de promociones activas por local?
-36. ¿Quién paga el descuento de una promoción: el local o LOCALIA?
-37. ¿Pueden combinarse múltiples promociones en un mismo pedido?
-38. ¿Hay límite de uso de promociones por cliente (por día/semana/mes)?
-39. ¿Las promociones aplican a todos los productos o solo a algunos?
-
----
-
-## Políticas de Reseñas y Moderación
-
-40. ¿Cuánto tiempo tiene el cliente para dejar una reseña después de la entrega?
-41. ¿Los locales pueden responder a las reseñas?
-42. ¿Qué pasa con reseñas falsas o maliciosas? ¿Quién las revisa?
-43. ¿Hay un sistema de reporte de reseñas inapropiadas?
-44. ¿Las reseñas pueden eliminarse o solo ocultarse?
-
----
-
 ## Reglas de Zonas de Cobertura
 
-45. ¿Qué pasa si un cliente está en el límite del radio de 3 km? ¿Se permite el pedido?
-46. ¿Los locales pueden definir su propia zona de cobertura o es fija (3 km)?
-47. ¿Qué pasa si un cliente se mueve fuera del radio después de crear el pedido?
-48. ¿Hay zonas prioritarias o todas tienen el mismo tratamiento?
+35. ¿Qué pasa si un cliente está en el límite del radio de 3 km? ¿Se permite el pedido?
+36. ¿Los locales pueden definir su propia zona de cobertura o es fija (3 km)?
+37. ¿Qué pasa si un cliente se mueve fuera del radio después de crear el pedido?
 
 ---
 
 ## Políticas de Propinas
 
-49. ¿Hay propina sugerida automática? ¿Qué porcentaje?
-50. ¿La propina va 100% al repartidor o se divide con el local?
-51. ¿Los clientes pueden agregar propina después de la entrega?
-52. ¿Hay límite máximo de propina?
+38. ¿Hay propina sugerida automática? ¿Qué porcentaje?
+39. ¿La propina va 100% al repartidor o se divide con el local?
+40. ¿Los clientes pueden agregar propina después de la entrega?
+41. ¿Hay límite máximo de propina?
 
 ---
 
 ## Reglas de Verificación y Seguridad
 
-53. ¿Qué documentos necesita un local para registrarse y operar?
-54. ¿Qué documentos necesita un repartidor para registrarse?
-55. ¿Hay verificación de identidad obligatoria?
-56. ¿Qué pasa si un local o repartidor no pasa la verificación?
-57. ¿Hay un proceso de apelación si se rechaza una verificación?
+42. ¿Qué documentos necesita un local para registrarse y operar?
+43. ¿Qué documentos necesita un repartidor para registrarse?
+44. ¿Hay verificación de identidad obligatoria?
+45. ¿Qué pasa si un local o repartidor no pasa la verificación?
+46. ¿Hay un proceso de apelación si se rechaza una verificación?
 
 ---
 
 ## Políticas de Soporte y Escalamiento
 
-58. ¿Qué pasa si hay un problema con un pedido? ¿Quién lo resuelve?
-59. ¿Hay un número de soporte para clientes, locales y repartidores?
-60. ¿Cuánto tiempo tiene el equipo para responder a problemas reportados?
-61. ¿Hay un proceso de escalamiento para problemas graves?
+47. ¿Qué pasa si hay un problema con un pedido? ¿Quién lo resuelve?
+48. ¿Hay un número de soporte para clientes, locales y repartidores?
+49. ¿Cuánto tiempo tiene el equipo para responder a problemas reportados?
+50. ¿Hay un proceso de escalamiento para problemas graves?
 
 ---
 
 ## Reglas de LocalCoins
 
-62. ¿Hay un mínimo de compra de LocalCoins?
-63. ¿Hay un máximo de compra de LocalCoins por transacción?
-64. ¿Los LocalCoins tienen fecha de expiración?
-65. ¿Se pueden transferir LocalCoins entre usuarios?
-66. ¿Hay límite de LocalCoins que un usuario puede tener en su cuenta?
+51. ¿Hay un mínimo de compra de LocalCoins?
+52. ¿Hay un máximo de compra de LocalCoins por transacción?
+53. ¿Los LocalCoins tienen fecha de expiración?
+54. ¿Se pueden transferir LocalCoins entre usuarios?
+55. ¿Hay límite de LocalCoins que un usuario puede tener en su cuenta?
 
 ---
 
 ## Políticas de Nuevos Usuarios
 
-67. ¿Hay bonificación de LocalCoins para nuevos usuarios?
-68. ¿Hay bonificación de LocalCoins para referidos?
-69. ¿Cuánto tiempo tienen los nuevos usuarios para usar bonificaciones?
-70. ¿Hay límite de cuentas por persona (para evitar fraude)?
+56. ¿Hay bonificación de LocalCoins para nuevos usuarios?
+57. ¿Hay bonificación de LocalCoins para referidos?
+58. ¿Cuánto tiempo tienen los nuevos usuarios para usar bonificaciones?
+59. ¿Hay límite de cuentas por persona (para evitar fraude)?
 
 ---
 
 ## Reglas de Negocio y Operación
 
-71. ¿Cuántos locales pueden operar simultáneamente en la misma zona?
-72. ¿Hay exclusividad territorial para algunos locales?
-73. ¿Qué pasa si dos locales tienen el mismo nombre?
-74. ¿Los locales pueden cambiar su información (dirección, teléfono) después de registrarse?
-75. ¿Hay un proceso de "prueba" o "beta" para nuevos locales antes de lanzamiento completo?
+60. ¿Cuántos locales pueden operar simultáneamente en la misma zona?
+61. ¿Hay exclusividad territorial para algunos locales?
+62. ¿Qué pasa si dos locales tienen el mismo nombre?
+63. ¿Los locales pueden cambiar su información (dirección, teléfono) después de registrarse?
+64. ¿Hay un proceso de "prueba" o "beta" para nuevos locales antes de lanzamiento completo?
 
 ---
 
