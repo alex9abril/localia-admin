@@ -7,42 +7,132 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import MobileLayout from '@/components/layout/MobileLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { ordersService, Order } from '@/lib/orders';
+import { ordersService, Order, TaxBreakdown } from '@/lib/orders';
+import { productsService, Product } from '@/lib/products';
+import TaxBreakdownComponent from '@/components/TaxBreakdown';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 
 export default function OrderDetailPage() {
+  // Todos los hooks deben estar al principio, sin condiciones
   const router = useRouter();
   const { id } = router.query;
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [productsData, setProductsData] = useState<Record<string, Product>>({});
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/auth/login');
-      return;
-    }
-    if (id && typeof id === 'string') {
-      loadOrder(id);
-    }
-  }, [id, isAuthenticated, authLoading, router]);
-
-  const loadOrder = async (orderId: string) => {
+  // Función para cargar el pedido - definida antes de los useEffects
+  const loadOrder = React.useCallback(async (orderId: string) => {
     try {
       setLoading(true);
       const orderData = await ordersService.findOne(orderId);
+      
+      // Parsear tax_breakdown si viene como string (JSONB de PostgreSQL)
+      if (orderData.items) {
+        orderData.items = orderData.items.map((item: any) => ({
+          ...item,
+          tax_breakdown: item.tax_breakdown 
+            ? (typeof item.tax_breakdown === 'string' 
+                ? JSON.parse(item.tax_breakdown) 
+                : item.tax_breakdown)
+            : null,
+          variant_selection: item.variant_selection
+            ? (typeof item.variant_selection === 'string'
+                ? JSON.parse(item.variant_selection)
+                : item.variant_selection)
+            : null,
+        }));
+      }
+      
       setOrder(orderData);
+      
+      // Cargar información de productos para obtener nombres de variantes
+      if (orderData.items && orderData.items.length > 0) {
+        const loadProducts = async () => {
+          setLoadingProducts(true);
+          try {
+            const productIds = [...new Set(orderData.items.map((item: any) => item.product_id))];
+            const productsMap: Record<string, Product> = {};
+            
+            await Promise.all(
+              productIds.map(async (productId) => {
+                try {
+                  const product = await productsService.getProduct(productId);
+                  productsMap[productId] = product;
+                } catch (error) {
+                  console.error(`Error cargando producto ${productId}:`, error);
+                }
+              })
+            );
+            
+            setProductsData(productsMap);
+          } catch (error) {
+            console.error('Error cargando productos:', error);
+          } finally {
+            setLoadingProducts(false);
+          }
+        };
+        
+        loadProducts();
+      }
     } catch (error: any) {
       console.error('Error cargando pedido:', error);
       setError(error.message || 'Error al cargar el pedido');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Verificar autenticación
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/auth/login');
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Cargar pedido solo cuando el router esté listo y tengamos el id
+  useEffect(() => {
+    // Esperar a que el router esté listo y tengamos el id
+    if (!router.isReady || !id || typeof id !== 'string' || hasLoaded) {
+      return;
+    }
+
+    // Solo cargar si estamos autenticados
+    if (!authLoading && isAuthenticated) {
+      loadOrder(id);
+      setHasLoaded(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, id, isAuthenticated, authLoading, hasLoaded]);
+
+  // Función helper para obtener el nombre de una variante
+  const getVariantName = React.useCallback((productId: string, variantId: string): string | null => {
+    const product = productsData[productId];
+    if (!product || !product.variant_groups) return null;
+    
+    for (const group of product.variant_groups) {
+      const variant = group.variants.find(v => v.variant_id === variantId);
+      if (variant) {
+        return variant.variant_name;
+      }
+    }
+    return null;
+  }, [productsData]);
+
+  // Función helper para obtener el nombre de un grupo de variantes
+  const getVariantGroupName = React.useCallback((productId: string, groupId: string): string | null => {
+    const product = productsData[productId];
+    if (!product || !product.variant_groups) return null;
+    
+    const group = product.variant_groups.find(g => g.variant_group_id === groupId);
+    return group ? group.variant_group_name : null;
+  }, [productsData]);
 
   const getStatusLabel = (status: string) => {
     const statusMap: Record<string, string> = {
@@ -70,7 +160,8 @@ export default function OrderDetailPage() {
     return colorMap[status] || 'bg-gray-100 text-gray-800';
   };
 
-  if (loading) {
+  // Mostrar loading mientras el router no esté listo o mientras cargamos
+  if (!router.isReady || loading || authLoading) {
     return (
       <MobileLayout>
         <div className="text-center py-12">
@@ -182,9 +273,27 @@ export default function OrderDetailPage() {
                   <div className="flex-1">
                     <p className="font-semibold text-black">{item.item_name}</p>
                     {item.variant_selection && Object.keys(item.variant_selection).length > 0 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Variantes: {JSON.stringify(item.variant_selection)}
-                      </p>
+                      <div className="text-xs text-gray-600 mt-2">
+                        {Object.entries(item.variant_selection).map(([groupId, variantIds]) => {
+                          const ids = Array.isArray(variantIds) ? variantIds : [variantIds];
+                          const groupName = getVariantGroupName(item.product_id, groupId);
+                          return (
+                            <div key={groupId} className="mb-1">
+                              {groupName && (
+                                <span className="text-gray-500 font-medium mr-1">{groupName}:</span>
+                              )}
+                              {ids.map((id) => {
+                                const variantName = getVariantName(item.product_id, id);
+                                return (
+                                  <span key={id} className="inline-block bg-gray-100 px-2 py-0.5 rounded mr-1 mb-1">
+                                    {variantName || id}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                     {item.special_instructions && (
                       <p className="text-xs text-gray-500 italic mt-1">
@@ -194,10 +303,31 @@ export default function OrderDetailPage() {
                     <p className="text-sm text-gray-600 mt-1">
                       Cantidad: {item.quantity} × ${parseFloat(String(item.item_price || 0)).toFixed(2)}
                     </p>
+                    {/* Impuestos del item */}
+                    {item.tax_breakdown && 
+                     typeof item.tax_breakdown === 'object' && 
+                     item.tax_breakdown.total_tax > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <TaxBreakdownComponent
+                          taxBreakdown={item.tax_breakdown}
+                          showTotal={false}
+                          compact={true}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <p className="font-semibold text-black">
-                    ${parseFloat(String(item.item_subtotal || 0)).toFixed(2)}
-                  </p>
+                  <div className="text-right">
+                    <p className="font-semibold text-black">
+                      ${parseFloat(String(item.item_subtotal || 0)).toFixed(2)}
+                    </p>
+                    {item.tax_breakdown && 
+                     typeof item.tax_breakdown === 'object' && 
+                     item.tax_breakdown.total_tax > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        + ${item.tax_breakdown.total_tax.toFixed(2)} impuestos
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -211,10 +341,27 @@ export default function OrderDetailPage() {
                 <span className="text-gray-600">Subtotal</span>
                 <span className="text-black font-medium">${parseFloat(String(order.subtotal || 0)).toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">IVA (16%)</span>
-                <span className="text-black font-medium">${parseFloat(String(order.tax_amount || 0)).toFixed(2)}</span>
-              </div>
+              {parseFloat(String(order.tax_amount || 0)) > 0 && (
+                <div className="space-y-1 pl-2 border-l-2 border-gray-200">
+                  {order.items?.map(item => {
+                    if (!item.tax_breakdown || 
+                        typeof item.tax_breakdown !== 'object' || 
+                        !item.tax_breakdown.taxes) {
+                      return null;
+                    }
+                    return item.tax_breakdown.taxes.map((tax: any) => (
+                      <div key={`${item.id}-${tax.tax_type_id}`} className="flex justify-between text-xs">
+                        <span className="text-gray-500">{tax.tax_name} ({(tax.rate * 100).toFixed(0)}%)</span>
+                        <span className="text-gray-600">${tax.amount.toFixed(2)}</span>
+                      </div>
+                    ));
+                  })}
+                  <div className="flex justify-between text-sm pt-1 border-t border-gray-100 mt-1">
+                    <span className="text-gray-600 font-medium">Total impuestos</span>
+                    <span className="text-black font-medium">${parseFloat(String(order.tax_amount || 0)).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
               {parseFloat(String(order.delivery_fee || 0)) > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Costo de envío</span>

@@ -4,6 +4,21 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+export interface TaxDetail {
+  tax_type_id: string;
+  tax_name: string;
+  tax_code?: string;
+  rate: number;
+  rate_type: 'percentage' | 'fixed';
+  amount: number;
+  applied_to: 'subtotal' | 'delivery' | 'tip';
+}
+
+export interface TaxBreakdown {
+  taxes: TaxDetail[];
+  total_tax: number;
+}
+
 export interface OrderItem {
   id: string;
   product_id: string;
@@ -13,6 +28,7 @@ export interface OrderItem {
   variant_selection?: Record<string, string | string[]>;
   item_subtotal: number | string;
   special_instructions?: string;
+  tax_breakdown?: TaxBreakdown; // Desglose de impuestos calculado
   created_at: string;
 }
 
@@ -78,7 +94,17 @@ class OrdersService {
       }
 
       const result = await response.json();
-      return result.data || result;
+      console.log('📦 Respuesta completa del checkout:', result);
+      
+      const order = result.data || result;
+      console.log('📦 Pedido parseado:', order);
+      console.log('📦 Order ID:', order?.id);
+      
+      if (!order || !order.id) {
+        throw new Error('El pedido no se creó correctamente. Falta el ID del pedido.');
+      }
+      
+      return order;
     } catch (error) {
       console.error('Error en checkout:', error);
       throw error;

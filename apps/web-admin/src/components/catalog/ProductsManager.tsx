@@ -517,9 +517,9 @@ export default function ProductsManager() {
       {/* Formulario de edición/creación */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-normal text-gray-900">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-base font-medium text-gray-900">
                 {isEditing ? 'Editar Producto' : 'Nuevo Producto'}
               </h3>
               <button
@@ -535,180 +535,257 @@ export default function ProductsManager() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Negocio *</label>
-                <select
-                  value={formData.business_id}
-                  onChange={(e) => setFormData({ ...formData, business_id: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  required
-                  disabled={isEditing}
-                >
-                  <option value="">Selecciona un negocio</option>
-                  {businesses.map((business) => (
-                    <option key={business.id} value={business.id}>
-                      {business.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* COLUMNA IZQUIERDA - Información del Producto */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Información General */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Información General
+                  </h3>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    required
-                  />
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Nombre <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Descripción
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      rows={4}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Precio *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Descripción</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">URL de la Imagen</label>
-                <input
-                  type="url"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="">Sin categoría</option>
-                  {categories
-                    .filter((cat) => !cat.business_id || cat.business_id === formData.business_id)
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name} {category.business_name ? `(${category.business_name})` : '(Global)'}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Orden</label>
-                  <input
-                    type="number"
-                    value={formData.display_order}
-                    onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
-                    min="0"
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
+                {/* Media */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Media
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      URL de la Imagen
+                    </label>
+                    <input
+                      type="url"
+                      value={formData.image_url}
+                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Estado</label>
-                  <select
-                    value={formData.is_available.toString()}
-                    onChange={(e) => setFormData({ ...formData, is_available: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="true">Disponible</option>
-                    <option value="false">No Disponible</option>
-                  </select>
+                {/* Variantes */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Variantes
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Variantes (JSON)
+                    </label>
+                    <textarea
+                      value={formData.variants}
+                      onChange={(e) => setFormData({ ...formData, variants: e.target.value })}
+                      rows={4}
+                      placeholder='{"size": ["pequeño", "mediano", "grande"], "toppings": [...]}'
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 font-mono"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Formato JSON opcional para variantes del producto</p>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Destacado</label>
-                  <select
-                    value={formData.is_featured.toString()}
-                    onChange={(e) => setFormData({ ...formData, is_featured: e.target.value === 'true' })}
-                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="false">No</option>
-                    <option value="true">Sí</option>
-                  </select>
+                {/* Información Nutricional */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Información Nutricional
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Información Nutricional (JSON)
+                    </label>
+                    <textarea
+                      value={formData.nutritional_info}
+                      onChange={(e) => setFormData({ ...formData, nutritional_info: e.target.value })}
+                      rows={4}
+                      placeholder='{"calories": 500, "protein": 25, "carbs": 50}'
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 font-mono"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Formato JSON opcional para información nutricional</p>
+                  </div>
+                </div>
+
+                {/* Alérgenos */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Alérgenos
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Alérgenos
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.allergens}
+                      onChange={(e) => setFormData({ ...formData, allergens: e.target.value })}
+                      placeholder="gluten, lactosa, soja (separados por comas)"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Separados por comas</p>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Variantes (JSON)</label>
-                <textarea
-                  value={formData.variants}
-                  onChange={(e) => setFormData({ ...formData, variants: e.target.value })}
-                  rows={3}
-                  placeholder='{"size": ["pequeño", "mediano", "grande"], "toppings": [...]}'
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                />
-                <p className="text-xs text-gray-400 mt-1">Formato JSON opcional para variantes del producto</p>
-              </div>
+              {/* COLUMNA DERECHA - Organización y Configuración */}
+              <div className="lg:col-span-1 space-y-6">
+                {/* Organizar Producto */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Organizar Producto
+                  </h3>
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Información Nutricional (JSON)</label>
-                <textarea
-                  value={formData.nutritional_info}
-                  onChange={(e) => setFormData({ ...formData, nutritional_info: e.target.value })}
-                  rows={3}
-                  placeholder='{"calories": 500, "protein": 25, "carbs": 50}'
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                />
-                <p className="text-xs text-gray-400 mt-1">Formato JSON opcional para información nutricional</p>
-              </div>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Negocio <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.business_id}
+                      onChange={(e) => setFormData({ ...formData, business_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                      required
+                      disabled={isEditing}
+                    >
+                      <option value="">Selecciona un negocio</option>
+                      {businesses.map((business) => (
+                        <option key={business.id} value={business.id}>
+                          {business.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Alérgenos</label>
-                <input
-                  type="text"
-                  value={formData.allergens}
-                  onChange={(e) => setFormData({ ...formData, allergens: e.target.value })}
-                  placeholder="gluten, lactosa, soja (separados por comas)"
-                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">Separados por comas</p>
-              </div>
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Categoría
+                    </label>
+                    <select
+                      value={formData.category_id}
+                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    >
+                      <option value="">Sin categoría</option>
+                      {categories
+                        .filter((cat) => !cat.business_id || cat.business_id === formData.business_id)
+                        .map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name} {category.business_name ? `(${category.business_name})` : '(Global)'}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
 
-              <div className="flex gap-2 pt-4">
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !formData.business_id || !formData.name || formData.price <= 0}
-                  className="flex-1 px-4 py-2 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowForm(false);
-                    setSelectedProduct(null);
-                  }}
-                  className="px-4 py-2 text-xs border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
+                {/* Disponibilidad */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Disponibilidad
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-normal text-gray-600 mb-1.5">Estado</label>
+                      <select
+                        value={formData.is_available.toString()}
+                        onChange={(e) => setFormData({ ...formData, is_available: e.target.value === 'true' })}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                      >
+                        <option value="true">Disponible</option>
+                        <option value="false">No Disponible</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-normal text-gray-600 mb-1.5">Destacado</label>
+                      <select
+                        value={formData.is_featured.toString()}
+                        onChange={(e) => setFormData({ ...formData, is_featured: e.target.value === 'true' })}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                      >
+                        <option value="false">No</option>
+                        <option value="true">Sí</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Precio y Visualización */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                    Precio y Visualización
+                  </h3>
+
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Precio <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                      Orden de Visualización
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.display_order}
+                      onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+                      min="0"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    />
+                  </div>
+                </div>
               </div>
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setSelectedProduct(null);
+                }}
+                className="px-4 py-2 text-sm font-normal border border-gray-200 rounded text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !formData.business_id || !formData.name || formData.price <= 0}
+                className="px-4 py-2 text-sm font-normal bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>

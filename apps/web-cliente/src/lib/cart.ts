@@ -4,6 +4,21 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+export interface TaxDetail {
+  tax_type_id: string;
+  tax_name: string;
+  tax_code?: string;
+  rate: number;
+  rate_type: 'percentage' | 'fixed';
+  amount: number;
+  applied_to: 'subtotal' | 'delivery' | 'tip';
+}
+
+export interface TaxBreakdown {
+  taxes: TaxDetail[];
+  total_tax: number;
+}
+
 export interface CartItem {
   id: string;
   product_id: string;
@@ -19,6 +34,7 @@ export interface CartItem {
   product_is_available: boolean;
   business_id: string;
   business_name: string;
+  tax_breakdown?: TaxBreakdown; // Calculado en tiempo real, no viene del backend
 }
 
 export interface Cart {

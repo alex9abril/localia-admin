@@ -119,13 +119,16 @@ export async function apiRequest<T = any>(
       hasAuth: !!authToken,
     });
     
-    // Si es un error 401, limpiar el token (probablemente expiró)
+    // Si es un error 401, limpiar el token y redirigir al login
     if (error.statusCode === 401) {
       console.warn('[API] Error 401 - Token inválido o expirado, limpiando sesión');
       if (typeof window !== 'undefined') {
         try {
           const { clearAuth } = require('./storage');
           clearAuth();
+          
+          // Disparar evento personalizado para que AuthContext maneje la redirección
+          window.dispatchEvent(new CustomEvent('auth:session-expired'));
         } catch (e) {
           console.error('[API] Error limpiando auth:', e);
         }

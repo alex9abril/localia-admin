@@ -1,9 +1,10 @@
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect } from 'react';
-import { businessService } from '@/lib/business';
 import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
+import { usePermission } from '@/lib/role-guards';
+import { canAccessRoute } from '@/lib/permissions';
+import { BusinessRole } from '@/lib/users';
 
 interface MenuItem {
   name: string;
@@ -12,6 +13,8 @@ interface MenuItem {
   badge?: string;
   children?: MenuItem[];
   requiresSuperadmin?: boolean;
+  requiredPermission?: keyof import('@/lib/permissions').RolePermissions;
+  hideForRoles?: BusinessRole[];
 }
 
 const menuItems: MenuItem[] = [
@@ -41,6 +44,7 @@ const menuItems: MenuItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
       </svg>
     ),
+    requiredPermission: 'canManageProducts',
   },
   {
     name: 'Pedidos',
@@ -69,39 +73,42 @@ const menuItems: MenuItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
-    requiresSuperadmin: true,
+    requiredPermission: 'canManageSettings',
   },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const { user } = useAuth();
-  const [isSuperadmin, setIsSuperadmin] = useState(false);
-  const [checkingRole, setCheckingRole] = useState(true);
-
   const { selectedBusiness } = useSelectedBusiness();
-
-  useEffect(() => {
-    const checkRole = async () => {
-      if (user) {
-        try {
-          // Usar la tienda seleccionada si está disponible
-          const businessId = selectedBusiness?.business_id;
-          const business = await businessService.getMyBusiness(businessId);
-          setIsSuperadmin(business?.user_role === 'superadmin');
-        } catch (error) {
-          console.error('Error verificando rol en Sidebar:', error);
-          setIsSuperadmin(false);
-        } finally {
-          setCheckingRole(false);
-        }
-      } else {
-        setCheckingRole(false);
-      }
-    };
-
-    checkRole();
-  }, [user, selectedBusiness?.business_id]);
+  
+  const userRole = (selectedBusiness?.role || 'operations_staff') as BusinessRole;
+  const canManageSettings = usePermission('canManageSettings');
+  const canManageProducts = usePermission('canManageProducts');
+  const canManageOrders = usePermission('canManageOrders');
+  
+  // Función helper para verificar si un item debe mostrarse
+  const shouldShowItem = (item: MenuItem): boolean => {
+    // Ocultar si el rol está en la lista de exclusión
+    if (item.hideForRoles?.includes(userRole)) {
+      return false;
+    }
+    
+    // Verificar permiso requerido
+    if (item.requiredPermission === 'canManageSettings' && !canManageSettings) {
+      return false;
+    }
+    if (item.requiredPermission === 'canManageProducts' && !canManageProducts) {
+      return false;
+    }
+    
+    // Verificar acceso a la ruta
+    if (!canAccessRoute(userRole, item.href)) {
+      return false;
+    }
+    
+    return true;
+  };
 
   const getUserInitials = () => {
     if (user?.first_name && user?.last_name) {
@@ -128,17 +135,7 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-3">
           {menuItems
-            .filter((item) => {
-              // Si requiere superadmin y aún estamos verificando, no mostrar
-              if (item.requiresSuperadmin && checkingRole) {
-                return false;
-              }
-              // Si requiere superadmin pero el usuario no lo es, no mostrar
-              if (item.requiresSuperadmin && !isSuperadmin) {
-                return false;
-              }
-              return true;
-            })
+            .filter(shouldShowItem)
             .map((item) => {
               const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
               
@@ -182,4 +179,5 @@ export default function Sidebar() {
     </aside>
   );
 }
+
 

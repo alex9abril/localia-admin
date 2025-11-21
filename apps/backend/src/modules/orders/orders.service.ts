@@ -323,6 +323,7 @@ export class OrdersService {
           variant_selection,
           item_subtotal,
           special_instructions,
+          tax_breakdown,
           created_at
         FROM orders.order_items
         WHERE order_id = $1
@@ -330,9 +331,20 @@ export class OrdersService {
         [orderId]
       );
 
+      // Parsear tax_breakdown si viene como string (JSONB de PostgreSQL)
+      const items = itemsResult.rows.map(item => ({
+        ...item,
+        tax_breakdown: typeof item.tax_breakdown === 'string' 
+          ? JSON.parse(item.tax_breakdown) 
+          : item.tax_breakdown,
+        variant_selection: typeof item.variant_selection === 'string'
+          ? JSON.parse(item.variant_selection)
+          : item.variant_selection,
+      }));
+
       return {
         ...order,
-        items: itemsResult.rows,
+        items,
       };
     } catch (error: any) {
       if (error instanceof NotFoundException) {
@@ -492,7 +504,48 @@ export class OrdersService {
         queryParams
       );
 
-      return result.rows;
+      // Obtener items para cada orden
+      const ordersWithItems = await Promise.all(
+        result.rows.map(async (order) => {
+          // Obtener items del pedido
+          const itemsResult = await dbPool.query(
+            `SELECT 
+              id,
+              product_id,
+              collection_id,
+              item_name,
+              item_price,
+              quantity,
+              variant_selection,
+              item_subtotal,
+              special_instructions,
+              tax_breakdown,
+              created_at
+            FROM orders.order_items
+            WHERE order_id = $1
+            ORDER BY created_at ASC`,
+            [order.id]
+          );
+
+          // Parsear variant_selection y tax_breakdown si vienen como string (JSONB de PostgreSQL)
+          const items = itemsResult.rows.map(item => ({
+            ...item,
+            tax_breakdown: typeof item.tax_breakdown === 'string' 
+              ? JSON.parse(item.tax_breakdown) 
+              : item.tax_breakdown,
+            variant_selection: typeof item.variant_selection === 'string'
+              ? JSON.parse(item.variant_selection)
+              : item.variant_selection,
+          }));
+
+          return {
+            ...order,
+            items,
+          };
+        })
+      );
+
+      return ordersWithItems;
     } catch (error: any) {
       console.error('❌ Error obteniendo pedidos del negocio:', error);
       throw new ServiceUnavailableException(`Error al obtener pedidos: ${error.message}`);
@@ -517,9 +570,10 @@ export class OrdersService {
           up.first_name as client_first_name,
           up.last_name as client_last_name,
           up.phone as client_phone,
-          up.email as client_email
+          au.email as client_email
         FROM orders.orders o
         LEFT JOIN core.user_profiles up ON o.client_id = up.id
+        LEFT JOIN auth.users au ON o.client_id = au.id
         WHERE o.id = $1 AND o.business_id = $2`,
         [orderId, businessId]
       );

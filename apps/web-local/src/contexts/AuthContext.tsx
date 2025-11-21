@@ -17,6 +17,16 @@ import {
   hasAuth 
 } from '@/lib/storage';
 
+// Importar SelectedBusinessContext para detectar roles operativos
+let selectedBusinessContext: any = null;
+try {
+  // Intentar importar dinámicamente para evitar dependencias circulares
+  const SelectedBusinessContextModule = require('@/contexts/SelectedBusinessContext');
+  selectedBusinessContext = SelectedBusinessContextModule;
+} catch (e) {
+  // Si no está disponible, no pasa nada
+}
+
 interface AuthContextType {
   user: any | null;
   token: string | null;
@@ -35,6 +45,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  // Detectar si el usuario tiene un rol operativo (necesita sesión más larga)
+  // El rol del negocio (operations_staff, kitchen_staff) se obtiene de SelectedBusinessContext
+  const isOperationalRole = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    
+    // Primero, verificar si estamos en rutas operativas (más rápido)
+    const path = window.location.pathname;
+    if (path.startsWith('/kitchen') || path.startsWith('/operations')) {
+      return true;
+    }
+    
+    // Si no estamos en rutas operativas, verificar el rol del negocio seleccionado
+    // Esto requiere acceso al contexto, pero lo hacemos de forma segura
+    try {
+      // Intentar obtener el negocio seleccionado del localStorage
+      const businessDataStr = localStorage.getItem('localia_selected_business_data');
+      if (businessDataStr) {
+        const businessData = JSON.parse(businessDataStr);
+        // El rol no está en businessData, pero podemos inferir por la ruta
+        // O mejor, usar el hook cuando esté disponible
+        return false;
+      }
+    } catch (e) {
+      // Si hay error, no es operativo
+    }
+    
+    return false;
+  };
+
+  // Manejar expiración de sesión
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSessionExpired = () => {
+      console.log('[Auth] Sesión expirada, redirigiendo al login...');
+      setToken(null);
+      setUser(null);
+      clearAuth();
+      
+      // Redirigir al login
+      router.push('/auth/login?expired=true');
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+    };
+  }, [router]);
+
+  // Refresh automático más agresivo para roles operativos
+  useEffect(() => {
+    if (typeof window === 'undefined' || !token || !user) return;
+
+    const isOperational = isOperationalRole();
+    
+    // Para roles operativos, refrescar cada 30 minutos (antes de que expire)
+    // Para otros roles, refrescar cada 1 hora
+    const refreshInterval = isOperational ? 30 * 60 * 1000 : 60 * 60 * 1000;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const refreshToken = getRefreshToken();
+        if (refreshToken) {
+          console.log(`[Auth] Refrescando token automáticamente (rol: ${isOperational ? 'operativo' : 'normal'})...`);
+          const refreshResponse = await authService.refreshToken(refreshToken);
+          setToken(refreshResponse.accessToken);
+          setAuthToken(refreshResponse.accessToken);
+          setRefreshToken(refreshResponse.refreshToken);
+          
+          // Actualizar perfil
+          const profile = await authService.getProfile(refreshResponse.accessToken);
+          setUser(profile);
+          setUserInStorage(profile);
+          console.log('[Auth] Token refrescado exitosamente');
+        }
+      } catch (error: any) {
+        console.error('[Auth] Error en refresh automático:', error);
+        // Si falla el refresh, no hacer nada todavía (esperar a que expire naturalmente)
+      }
+    }, refreshInterval);
+
+    return () => clearInterval(intervalId);
+  }, [token, user]);
 
   // Cargar token y usuario desde localStorage al iniciar
   useEffect(() => {
@@ -113,9 +208,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   })
                   .catch((refreshError: any) => {
                     console.error('[Auth] Error al refrescar token:', refreshError?.statusCode || refreshError?.message);
-                    // NO limpiar automáticamente - mantener la sesión
-                    // Solo limpiar si el usuario intenta hacer algo que requiere autenticación
-                    console.log('[Auth] Refresh falló, pero manteniendo sesión en localStorage');
+                    // Si el refresh falla completamente, la sesión expiró
+                    if (refreshError?.statusCode === 401) {
+                      console.log('[Auth] Refresh falló con 401, sesión expirada');
+                      window.dispatchEvent(new CustomEvent('auth:session-expired'));
+                    } else {
+                      // Otro error, mantener sesión
+                      console.log('[Auth] Refresh falló, pero manteniendo sesión en localStorage');
+                    }
                   });
               } else {
                 // Si es otro tipo de error (red, 500, endpoint no existe, etc), mantener la sesión
@@ -240,13 +340,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const profile = await authService.getProfile(refreshResponse.accessToken);
           setUser(profile); // Actualizar estado
           setUserInStorage(profile); // Actualizar en storage
-        } catch (refreshError) {
-          // Refresh falló, cerrar sesión
-          signOut();
+        } catch (refreshError: any) {
+          // Refresh falló, verificar si es 401 (sesión expirada)
+          if (refreshError?.statusCode === 401) {
+            window.dispatchEvent(new CustomEvent('auth:session-expired'));
+          } else {
+            signOut();
+          }
         }
       } else {
         // No hay refresh token o error diferente, cerrar sesión
-        signOut();
+        if (error?.statusCode === 401) {
+          window.dispatchEvent(new CustomEvent('auth:session-expired'));
+        } else {
+          signOut();
+        }
       }
     }
   };

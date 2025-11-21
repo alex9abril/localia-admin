@@ -1,9 +1,10 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import LocalLayout from '@/components/layout/LocalLayout';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
 import { productsService, Product, ProductCategory, ProductType, CreateProductData, ProductVariantGroup } from '@/lib/products';
+import { taxesService, TaxType, ProductTax } from '@/lib/taxes';
 import ImageUpload from '@/components/ImageUpload';
 import CategorySelector from '@/components/CategorySelector';
 import { ProductForm } from './index';
@@ -39,14 +40,41 @@ export default function ProductDetailPage() {
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [allergens, setAllergens] = useState<string[]>([]);
   const [nutritionalInfo, setNutritionalInfo] = useState<Record<string, any>>({});
+  
+  // Estados para impuestos
+  const [availableTaxTypes, setAvailableTaxTypes] = useState<TaxType[]>([]);
+  const [productTaxes, setProductTaxes] = useState<ProductTax[]>([]);
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
+
+  // Función memoizada para cargar impuestos del producto
+  const loadProductTaxes = useCallback(async (productId: string) => {
+    try {
+      setLoadingTaxes(true);
+      const taxes = await taxesService.getProductTaxes(productId);
+      setProductTaxes(taxes);
+    } catch (err: any) {
+      console.error('Error cargando impuestos del producto:', err);
+      setProductTaxes([]);
+    } finally {
+      setLoadingTaxes(false);
+    }
+  }, []);
 
   // Cargar producto cuando cambie el ID de la URL
   useEffect(() => {
     if (router.isReady && id && typeof id === 'string' && selectedBusiness?.business_id) {
       loadProduct(id);
       loadCategories();
+      loadTaxTypes();
     }
   }, [router.isReady, id, selectedBusiness?.business_id]);
+
+  // Cargar impuestos cuando el producto esté cargado
+  useEffect(() => {
+    if (product?.id) {
+      loadProductTaxes(product.id);
+    }
+  }, [product?.id, loadProductTaxes]);
 
   const loadProduct = async (productId: string) => {
     try {
@@ -133,6 +161,22 @@ export default function ProductDetailPage() {
     }
   };
 
+  const loadTaxTypes = async () => {
+    try {
+      const taxTypes = await taxesService.getTaxTypes(false);
+      setAvailableTaxTypes(taxTypes);
+    } catch (err: any) {
+      console.error('Error cargando tipos de impuestos:', err);
+    }
+  };
+
+  // Función memoizada para cargar impuestos del producto actual (para pasar al formulario)
+  const handleLoadProductTaxes = useCallback(() => {
+    if (product?.id) {
+      loadProductTaxes(product.id);
+    }
+  }, [product?.id, loadProductTaxes]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
@@ -184,6 +228,51 @@ export default function ProductDetailPage() {
       });
 
       await productsService.updateProduct({ ...productData, id: product.id });
+      
+      // Guardar/actualizar impuestos del producto
+      if (product?.id) {
+        try {
+          // Obtener impuestos actuales del producto
+          const currentTaxes = await taxesService.getProductTaxes(product.id);
+          const currentTaxTypeIds = currentTaxes.map(t => t.tax_type_id);
+          
+          // Asignar nuevos impuestos
+          for (const productTax of productTaxes) {
+            if (!currentTaxTypeIds.includes(productTax.tax_type_id)) {
+              await taxesService.assignTaxToProduct(product.id, {
+                tax_type_id: productTax.tax_type_id,
+                override_rate: productTax.override_rate,
+                override_fixed_amount: productTax.override_fixed_amount,
+                display_order: productTax.display_order,
+              });
+            } else {
+              // Actualizar si hay cambios en override
+              const existingTax = currentTaxes.find(t => t.tax_type_id === productTax.tax_type_id);
+              if (existingTax && (
+                existingTax.override_rate !== productTax.override_rate ||
+                existingTax.override_fixed_amount !== productTax.override_fixed_amount
+              )) {
+                await taxesService.assignTaxToProduct(product.id, {
+                  tax_type_id: productTax.tax_type_id,
+                  override_rate: productTax.override_rate,
+                  override_fixed_amount: productTax.override_fixed_amount,
+                  display_order: productTax.display_order,
+                });
+              }
+            }
+          }
+          
+          // Desasignar impuestos que ya no están en la lista
+          for (const currentTax of currentTaxes) {
+            if (!productTaxes.find(pt => pt.tax_type_id === currentTax.tax_type_id)) {
+              await taxesService.removeTaxFromProduct(product.id, currentTax.tax_type_id);
+            }
+          }
+        } catch (taxErr: any) {
+          console.error('Error guardando impuestos:', taxErr);
+          // No fallar el guardado del producto si hay error en impuestos
+        }
+      }
       
       // Recargar producto actualizado
       await loadProduct(product.id);
@@ -282,6 +371,11 @@ export default function ProductDetailPage() {
           editingProduct={product}
           saving={saving}
           fieldConfig={fieldConfig}
+          availableTaxTypes={availableTaxTypes}
+          productTaxes={productTaxes}
+          setProductTaxes={setProductTaxes}
+          loadingTaxes={loadingTaxes}
+          onLoadProductTaxes={handleLoadProductTaxes}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
         />

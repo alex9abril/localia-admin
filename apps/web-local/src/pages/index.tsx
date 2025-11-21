@@ -1,20 +1,32 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
+import { getDefaultRouteForRole } from '@/lib/permissions';
+import { BusinessRole } from '@/lib/users';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { selectedBusiness, isLoading: businessLoading } = useSelectedBusiness();
 
   useEffect(() => {
-    if (!loading) {
-      if (isAuthenticated) {
-        router.push('/dashboard');
-      } else {
-        router.push('/auth/login');
-      }
+    if (authLoading || businessLoading) return;
+
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+      return;
     }
-  }, [isAuthenticated, loading, router]);
+
+    if (selectedBusiness) {
+      const role = selectedBusiness.role as BusinessRole;
+      const defaultRoute = getDefaultRouteForRole(role);
+      router.push(defaultRoute);
+    } else {
+      // Si no hay negocio seleccionado, ir al dashboard
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, authLoading, selectedBusiness, businessLoading, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

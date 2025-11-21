@@ -11,7 +11,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { addressesService, Address, CreateAddressDto } from '@/lib/addresses';
 import { ordersService, CheckoutDto } from '@/lib/orders';
-import { cartService } from '@/lib/cart';
+import { cartService, CartItem, TaxBreakdown } from '@/lib/cart';
+import { taxesService } from '@/lib/taxes';
+import { productsService, Product } from '@/lib/products';
+import TaxBreakdownComponent from '@/components/TaxBreakdown';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AddIcon from '@mui/icons-material/Add';
@@ -37,6 +40,10 @@ export default function CheckoutPage() {
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [itemsTaxBreakdowns, setItemsTaxBreakdowns] = useState<Record<string, TaxBreakdown>>({});
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
+  const [productsData, setProductsData] = useState<Record<string, Product>>({});
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // Redirigir si no está autenticado o carrito vacío
   useEffect(() => {
@@ -50,38 +57,51 @@ export default function CheckoutPage() {
     }
   }, [isAuthenticated, authLoading, cart, cartLoading, router]);
 
-  // Cargar direcciones
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadAddresses();
-    }
-  }, [isAuthenticated]);
-
-  // Cargar negocio más cercano cuando se selecciona una dirección
-  useEffect(() => {
-    if (selectedAddress && cart?.business_id) {
-      loadNearestBusiness();
-    }
-  }, [selectedAddress, cart?.business_id]);
-
-  const loadAddresses = async () => {
+  // Función para cargar direcciones - memoizada para evitar recreaciones
+  const loadAddresses = React.useCallback(async () => {
     try {
+      console.log('🔄 Cargando direcciones...');
       const data = await addressesService.findAll();
+      console.log('✅ Direcciones cargadas:', data);
+      console.log('📊 Cantidad de direcciones:', Array.isArray(data) ? data.length : 'No es un array');
+      
+      if (!Array.isArray(data)) {
+        console.error('❌ Error: La respuesta no es un array:', data);
+        setAddresses([]);
+        return;
+      }
+      
       setAddresses(data);
+      
       // Seleccionar dirección predeterminada si existe
       const defaultAddress = data.find(a => a.is_default);
       if (defaultAddress) {
+        console.log('📍 Dirección predeterminada encontrada:', defaultAddress);
         setSelectedAddress(defaultAddress);
       } else if (data.length > 0) {
+        console.log('📍 Seleccionando primera dirección:', data[0]);
         setSelectedAddress(data[0]);
+      } else {
+        console.log('⚠️ No hay direcciones disponibles');
+        setSelectedAddress(null);
       }
     } catch (error: any) {
-      console.error('Error cargando direcciones:', error);
+      console.error('❌ Error cargando direcciones:', error);
       setError('Error al cargar direcciones');
+      setAddresses([]);
     }
-  };
+  }, []);
 
-  const loadNearestBusiness = async () => {
+  // Cargar direcciones cuando el usuario esté autenticado
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      console.log('🔍 Usuario autenticado, cargando direcciones...');
+      loadAddresses();
+    }
+  }, [isAuthenticated, authLoading, loadAddresses]);
+
+  // Función para cargar negocio más cercano - memoizada
+  const loadNearestBusiness = React.useCallback(async () => {
     if (!selectedAddress || !cart?.business_id) return;
 
     try {
@@ -112,7 +132,7 @@ export default function CheckoutPage() {
       console.error('Error obteniendo negocio más cercano:', error);
       // Continuar sin el negocio más cercano
     }
-  };
+  }, [selectedAddress, cart?.business_id]);
 
   const handleAddressSelect = (address: Address) => {
     setSelectedAddress(address);
@@ -172,9 +192,20 @@ export default function CheckoutPage() {
 
       const order = await ordersService.checkout(checkoutDto);
       
-      // Limpiar carrito y redirigir a confirmación
+      console.log('✅ Pedido creado:', order);
+      
+      // Validar que el order tenga id
+      if (!order || !order.id) {
+        console.error('❌ Error: El pedido no tiene ID', order);
+        setError('Error al crear el pedido. Por favor intenta de nuevo.');
+        return;
+      }
+      
+      // Limpiar carrito
       await refreshCart();
-      router.push(`/orders/${order.id}`);
+      
+      // Usar window.location para una redirección completa y evitar problemas con hooks
+      window.location.href = `/orders/${order.id}`;
     } catch (error: any) {
       console.error('Error en checkout:', error);
       setError(error.message || 'Error al procesar el pedido');
@@ -194,9 +225,93 @@ export default function CheckoutPage() {
   }
 
   const subtotal = parseFloat(cart.subtotal || '0');
-  const tax = subtotal * 0.16; // IVA 16%
+  // Calcular impuestos para cada item del carrito
+  useEffect(() => {
+    if (cart && cart.items && cart.items.length > 0) {
+      let isMounted = true;
+      
+      const calculateTaxes = async () => {
+        setLoadingTaxes(true);
+        try {
+          const taxBreakdowns: Record<string, TaxBreakdown> = {};
+          
+          await Promise.all(
+            cart.items.map(async (item: CartItem) => {
+              try {
+                const itemSubtotal = parseFloat(String(item.item_subtotal || 0));
+                const taxBreakdown = await taxesService.calculateProductTaxes(item.product_id, itemSubtotal);
+                if (isMounted) {
+                  taxBreakdowns[item.id] = taxBreakdown;
+                }
+              } catch (error) {
+                console.error(`Error calculando impuestos para item ${item.id}:`, error);
+                if (isMounted) {
+                  taxBreakdowns[item.id] = { taxes: [], total_tax: 0 };
+                }
+              }
+            })
+          );
+          
+          if (isMounted) {
+            setItemsTaxBreakdowns(taxBreakdowns);
+            setLoadingTaxes(false);
+          }
+        } catch (error) {
+          console.error('Error calculando impuestos:', error);
+          if (isMounted) {
+            setLoadingTaxes(false);
+          }
+        }
+      };
+      
+      calculateTaxes();
+      
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [cart]);
+
+  // Cargar información de productos para obtener nombres de variantes
+  useEffect(() => {
+    if (cart && cart.items && cart.items.length > 0) {
+      const loadProducts = async () => {
+        setLoadingProducts(true);
+        try {
+          const productIdsSet = new Set(cart.items.map((item: CartItem) => item.product_id));
+          const productIds = Array.from(productIdsSet);
+          const productsMap: Record<string, Product> = {};
+          
+          await Promise.all(
+            productIds.map(async (productId) => {
+              try {
+                const product = await productsService.getProduct(productId);
+                productsMap[productId] = product;
+              } catch (error) {
+                console.error(`Error cargando producto ${productId}:`, error);
+              }
+            })
+          );
+          
+          setProductsData(productsMap);
+        } catch (error) {
+          console.error('Error cargando productos:', error);
+        } finally {
+          setLoadingProducts(false);
+        }
+      };
+      
+      loadProducts();
+    }
+  }, [cart]);
+
+  // Calcular total de impuestos
+  const totalTax = Object.values(itemsTaxBreakdowns).reduce(
+    (sum, breakdown) => sum + (breakdown?.total_tax || 0),
+    0
+  );
   const deliveryFee = 0; // Por ahora gratis
-  const total = subtotal + tax + deliveryFee + tipAmount;
+  const total = subtotal + totalTax + deliveryFee + tipAmount;
 
   return (
     <>
@@ -288,11 +403,14 @@ export default function CheckoutPage() {
                 cart={cart}
                 address={selectedAddress}
                 subtotal={subtotal}
-                tax={tax}
+                totalTax={totalTax}
+                itemsTaxBreakdowns={itemsTaxBreakdowns}
                 deliveryFee={deliveryFee}
                 tipAmount={tipAmount}
                 total={total}
                 deliveryNotes={deliveryNotes}
+                productsData={productsData}
+                loadingProducts={loadingProducts}
               />
             )}
           </div>
@@ -700,25 +818,172 @@ function SummaryStep({
   cart,
   address,
   subtotal,
-  tax,
+  totalTax,
+  itemsTaxBreakdowns,
   deliveryFee,
   tipAmount,
   total,
   deliveryNotes,
+  productsData,
+  loadingProducts,
 }: {
   cart: any;
   address: Address;
   subtotal: number;
-  tax: number;
+  totalTax: number;
+  itemsTaxBreakdowns: Record<string, TaxBreakdown>;
   deliveryFee: number;
   tipAmount: number;
   total: number;
   deliveryNotes: string;
+  productsData: Record<string, Product>;
+  loadingProducts: boolean;
 }) {
+  // Función helper para obtener el nombre de una variante
+  const getVariantName = (productId: string, variantId: string): string | null => {
+    const product = productsData[productId];
+    if (!product) {
+      console.log(`⚠️ Producto ${productId} no encontrado en productsData`);
+      return null;
+    }
+    if (!product.variant_groups || product.variant_groups.length === 0) {
+      console.log(`⚠️ Producto ${productId} no tiene variant_groups`);
+      return null;
+    }
+    
+    for (const group of product.variant_groups) {
+      const variant = group.variants.find((v: any) => {
+        const vId = v.variant_id || v.id;
+        return vId === variantId;
+      });
+      if (variant) {
+        return variant.variant_name || null;
+      }
+    }
+    
+    console.log(`⚠️ Variante ${variantId} no encontrada en producto ${productId}`, {
+      productName: product.name,
+      variantGroups: product.variant_groups,
+    });
+    return null;
+  };
+
+  // Función helper para obtener el nombre de un grupo de variantes
+  const getVariantGroupName = (productId: string, groupId: string): string | null => {
+    const product = productsData[productId];
+    if (!product) {
+      console.log(`⚠️ Producto ${productId} no encontrado en productsData`);
+      return null;
+    }
+    if (!product.variant_groups || product.variant_groups.length === 0) {
+      console.log(`⚠️ Producto ${productId} no tiene variant_groups`);
+      return null;
+    }
+    
+    const group = product.variant_groups.find((g: any) => {
+      const gId = g.variant_group_id || g.id;
+      return gId === groupId;
+    });
+    
+    if (!group) {
+      console.log(`⚠️ Grupo ${groupId} no encontrado en producto ${productId}`, {
+        productName: product.name,
+        variantGroups: product.variant_groups,
+      });
+    }
+    
+    return group ? (group.variant_group_name || null) : null;
+  };
+
   return (
     <div>
       <h2 className="text-lg font-bold text-black mb-4">Resumen del Pedido</h2>
       <div className="space-y-4">
+        {/* Items del pedido */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Items del pedido</h3>
+          <div className="space-y-0">
+            {cart.items?.map((item: CartItem) => {
+              const itemPrice = parseFloat(String(item.item_subtotal || 0));
+              const unitPrice = parseFloat(String(item.unit_price || 0));
+              
+              // Parsear variant_selections si viene como string JSON
+              let variantSelections: Record<string, string | string[]> | null = null;
+              if (item.variant_selections) {
+                if (typeof item.variant_selections === 'string') {
+                  try {
+                    variantSelections = JSON.parse(item.variant_selections);
+                  } catch (e) {
+                    console.error('Error parseando variant_selections:', e);
+                    variantSelections = null;
+                  }
+                } else {
+                  variantSelections = item.variant_selections;
+                }
+              }
+              
+              return (
+                <div key={item.id} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-gray-500">{item.quantity}x</span>
+                        <p className="font-semibold text-black">{item.product_name}</p>
+                      </div>
+                      
+                      {/* Variantes seleccionadas - Diseño limpio y operativo */}
+                      {variantSelections && Object.keys(variantSelections).length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {loadingProducts ? (
+                            <span className="text-xs text-gray-400 italic">Cargando variantes...</span>
+                          ) : (
+                            Object.entries(variantSelections).map(([groupId, variantIds]) => {
+                              const ids = Array.isArray(variantIds) ? variantIds : [variantIds];
+                              const groupName = getVariantGroupName(item.product_id, groupId);
+                              
+                              return (
+                                <div key={groupId} className="text-xs text-gray-600">
+                                  {groupName && (
+                                    <span className="font-medium text-gray-700">{groupName}: </span>
+                                  )}
+                                  {ids.map((id, idx) => {
+                                    const variantName = getVariantName(item.product_id, id);
+                                    return (
+                                      <span key={id}>
+                                        {idx > 0 && ', '}
+                                        <span className="text-gray-800">{variantName || id}</span>
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Notas especiales */}
+                      {item.special_instructions && (
+                        <div className="mt-2 flex items-start gap-1.5">
+                          <span className="text-xs text-gray-500 font-medium">Nota:</span>
+                          <p className="text-xs text-gray-600 italic flex-1">{item.special_instructions}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-semibold text-black">${itemPrice.toFixed(2)}</p>
+                      {item.quantity > 1 && (
+                        <p className="text-xs text-gray-500">${unitPrice.toFixed(2)} c/u</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div>
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Dirección de entrega</h3>
           <p className="text-sm text-gray-900">
@@ -742,10 +1007,22 @@ function SummaryStep({
               <span className="text-gray-600">Subtotal</span>
               <span className="text-black font-medium">${subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">IVA (16%)</span>
-              <span className="text-black font-medium">${tax.toFixed(2)}</span>
-            </div>
+            {totalTax > 0 && (
+              <div className="space-y-1 pl-2 border-l-2 border-gray-200">
+                {Object.values(itemsTaxBreakdowns).flatMap(breakdown => 
+                  breakdown?.taxes?.map(tax => (
+                    <div key={tax.tax_type_id} className="flex justify-between text-xs">
+                      <span className="text-gray-500">{tax.tax_name} ({(tax.rate * 100).toFixed(0)}%)</span>
+                      <span className="text-gray-600">${tax.amount.toFixed(2)}</span>
+                    </div>
+                  )) || []
+                )}
+                <div className="flex justify-between text-sm pt-1 border-t border-gray-100 mt-1">
+                  <span className="text-gray-600 font-medium">Total impuestos</span>
+                  <span className="text-black font-medium">${totalTax.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
             {deliveryFee > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Costo de envío</span>

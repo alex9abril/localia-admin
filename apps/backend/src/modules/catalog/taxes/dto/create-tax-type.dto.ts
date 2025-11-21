@@ -56,5 +56,10 @@ export class CreateTaxTypeDto {
   @ApiProperty({ description: 'Si este impuesto se asigna automáticamente a nuevos productos', default: false })
   @IsBoolean()
   is_default: boolean;
+
+  @ApiProperty({ description: 'Si el impuesto está activo', default: true })
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }
 

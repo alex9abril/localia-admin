@@ -78,13 +78,25 @@ class AddressesService {
       });
 
       if (!response.ok) {
-        throw new Error(`Error al obtener direcciones: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error al obtener direcciones: ${response.statusText}`);
       }
 
       const result = await response.json();
-      return result.data || result;
+      console.log('📦 Respuesta completa de direcciones:', result);
+      
+      const addresses = result.data || result;
+      console.log('📦 Direcciones parseadas:', addresses);
+      console.log('📦 Es array?', Array.isArray(addresses));
+      
+      if (!Array.isArray(addresses)) {
+        console.error('❌ Error: La respuesta no es un array:', addresses);
+        return [];
+      }
+      
+      return addresses;
     } catch (error) {
-      console.error('Error obteniendo direcciones:', error);
+      console.error('❌ Error obteniendo direcciones:', error);
       throw error;
     }
   }

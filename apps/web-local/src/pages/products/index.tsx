@@ -4,6 +4,7 @@ import LocalLayout from '@/components/layout/LocalLayout';
 import { useState, useEffect } from 'react';
 import { useSelectedBusiness } from '@/contexts/SelectedBusinessContext';
 import { productsService, Product, ProductCategory, ProductType, CreateProductData, ProductVariantGroup } from '@/lib/products';
+import { taxesService, TaxType, ProductTax } from '@/lib/taxes';
 import ImageUpload from '@/components/ImageUpload';
 import CategorySelector from '@/components/CategorySelector';
 
@@ -43,11 +44,17 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'updated_at' | 'created_at'>('updated_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Estados para impuestos
+  const [availableTaxTypes, setAvailableTaxTypes] = useState<TaxType[]>([]);
+  const [productTaxes, setProductTaxes] = useState<ProductTax[]>([]);
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
     if (selectedBusiness?.business_id) {
       loadData();
+      loadTaxTypes();
     }
   }, [selectedBusiness?.business_id]);
 
@@ -72,6 +79,29 @@ export default function ProductsPage() {
       setError('Error al cargar los productos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTaxTypes = async () => {
+    try {
+      const taxTypes = await taxesService.getTaxTypes(false);
+      setAvailableTaxTypes(taxTypes);
+    } catch (err: any) {
+      console.error('Error cargando tipos de impuestos:', err);
+      // No mostrar error al usuario, solo log
+    }
+  };
+
+  const loadProductTaxes = async (productId: string) => {
+    try {
+      setLoadingTaxes(true);
+      const taxes = await taxesService.getProductTaxes(productId);
+      setProductTaxes(taxes);
+    } catch (err: any) {
+      console.error('Error cargando impuestos del producto:', err);
+      setProductTaxes([]);
+    } finally {
+      setLoadingTaxes(false);
     }
   };
 
@@ -131,6 +161,7 @@ export default function ProductsPage() {
     setAllergens([]);
     setNutritionalInfo({});
     setEditingProduct(null);
+    setProductTaxes([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -159,10 +190,56 @@ export default function ProductsPage() {
         nutritional_info: Object.keys(nutritionalInfo).length > 0 ? nutritionalInfo : undefined,
       };
 
+      let savedProduct: Product;
       if (editingProduct) {
-        await productsService.updateProduct({ ...productData, id: editingProduct.id });
+        savedProduct = await productsService.updateProduct({ ...productData, id: editingProduct.id });
       } else {
-        await productsService.createProduct(productData);
+        savedProduct = await productsService.createProduct(productData);
+      }
+
+      // Guardar/actualizar impuestos del producto
+      if (savedProduct?.id) {
+        try {
+          // Obtener impuestos actuales del producto
+          const currentTaxes = await taxesService.getProductTaxes(savedProduct.id);
+          const currentTaxTypeIds = currentTaxes.map(t => t.tax_type_id);
+          
+          // Asignar nuevos impuestos
+          for (const productTax of productTaxes) {
+            if (!currentTaxTypeIds.includes(productTax.tax_type_id)) {
+              await taxesService.assignTaxToProduct(savedProduct.id, {
+                tax_type_id: productTax.tax_type_id,
+                override_rate: productTax.override_rate,
+                override_fixed_amount: productTax.override_fixed_amount,
+                display_order: productTax.display_order,
+              });
+            } else {
+              // Actualizar si hay cambios en override
+              const existingTax = currentTaxes.find(t => t.tax_type_id === productTax.tax_type_id);
+              if (existingTax && (
+                existingTax.override_rate !== productTax.override_rate ||
+                existingTax.override_fixed_amount !== productTax.override_fixed_amount
+              )) {
+                await taxesService.assignTaxToProduct(savedProduct.id, {
+                  tax_type_id: productTax.tax_type_id,
+                  override_rate: productTax.override_rate,
+                  override_fixed_amount: productTax.override_fixed_amount,
+                  display_order: productTax.display_order,
+                });
+              }
+            }
+          }
+          
+          // Desasignar impuestos que ya no están en la lista
+          for (const currentTax of currentTaxes) {
+            if (!productTaxes.find(pt => pt.tax_type_id === currentTax.tax_type_id)) {
+              await taxesService.removeTaxFromProduct(savedProduct.id, currentTax.tax_type_id);
+            }
+          }
+        } catch (taxErr: any) {
+          console.error('Error guardando impuestos:', taxErr);
+          // No fallar el guardado del producto si hay error en impuestos
+        }
       }
 
       await loadData();
@@ -174,6 +251,8 @@ export default function ProductsPage() {
         if (newProduct) {
           setEditingProduct(newProduct);
           setFormData({ ...formData, business_id: newProduct.business_id });
+          // Cargar impuestos del producto recién creado
+          await loadProductTaxes(newProduct.id);
         }
       } else {
         // Si es edición, cerrar el formulario
@@ -613,6 +692,11 @@ export interface ProductFormProps {
   editingProduct: Product | null;
   saving: boolean;
   fieldConfig: Array<{ fieldName: string; isVisible: boolean; isRequired: boolean; displayOrder?: number }>;
+  availableTaxTypes: TaxType[];
+  productTaxes: ProductTax[];
+  setProductTaxes: React.Dispatch<React.SetStateAction<ProductTax[]>>;
+  loadingTaxes: boolean;
+  onLoadProductTaxes?: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
 }
@@ -634,11 +718,24 @@ export function ProductForm({
   editingProduct,
   saving,
   fieldConfig,
+  availableTaxTypes,
+  productTaxes,
+  setProductTaxes,
+  loadingTaxes,
+  onLoadProductTaxes,
   onSubmit,
   onCancel,
 }: ProductFormProps) {
   const productTypes = productsService.getProductTypes();
   const commonAllergens = ['gluten', 'lactosa', 'huevo', 'soja', 'nueces', 'pescado', 'mariscos', 'sésamo'];
+
+  // Cargar impuestos del producto cuando se edita
+  useEffect(() => {
+    if (editingProduct?.id && onLoadProductTaxes) {
+      onLoadProductTaxes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingProduct?.id]); // Solo ejecutar cuando cambie el ID del producto, no cuando cambie la función
 
   // Helper para verificar si un campo es visible
   const isFieldVisible = (fieldName: string): boolean => {
@@ -730,171 +827,82 @@ export function ProductForm({
         </h2>
       </div>
 
-      <form onSubmit={onSubmit} className="p-6 space-y-8">
-          {/* Información Básica */}
-          <div className="space-y-5">
-            <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Información Básica</h3>
+      <form onSubmit={onSubmit} className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* COLUMNA IZQUIERDA - Información del Producto */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Información General */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                Información General
+              </h3>
 
-            {/* Nombre */}
-            {isFieldVisible('name') && (
-              <div>
-                <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                  Nombre {isFieldRequired('name') && <span className="text-red-500">*</span>}
-                </label>
-                <input
-                  type="text"
-                  required={isFieldRequired('name')}
-                  maxLength={255}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ej: Hamburguesa Clásica"
-                />
-              </div>
-            )}
-
-            {/* Descripción */}
-            {isFieldVisible('description') && (
-              <div>
-                <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                  Descripción {isFieldRequired('description') && <span className="text-red-500">*</span>}
-                </label>
-                <textarea
-                  rows={3}
-                  required={isFieldRequired('description')}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Describe el producto..."
-                />
-              </div>
-            )}
-
-            {/* Tipo de Producto y Categoría */}
-            <div className="grid grid-cols-2 gap-4">
-              {isFieldVisible('product_type') && (
+              {/* Nombre */}
+              {isFieldVisible('name') && (
                 <div>
                   <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                    Tipo de Producto {isFieldRequired('product_type') && <span className="text-red-500">*</span>}
+                    Nombre {isFieldRequired('name') && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="text"
-                    disabled
-                    required={isFieldRequired('product_type')}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded bg-gray-50 text-gray-600"
-                    value={productTypes.find(t => t.value === formData.product_type)?.label || formData.product_type}
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Gestionado por administradores</p>
-                </div>
-              )}
-
-              {isFieldVisible('category_id') && (
-                <div>
-                  <CategorySelector
-                    categories={categories}
-                    value={formData.category_id}
-                    onChange={(categoryId) => setFormData({ ...formData, category_id: categoryId })}
-                    required={isFieldRequired('category_id')}
-                    placeholder="Selecciona una categoría"
+                    required={isFieldRequired('name')}
+                    maxLength={255}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ej: Hamburguesa Clásica"
                   />
                 </div>
               )}
-            </div>
 
-            {/* Precio y Orden de Visualización */}
-            <div className="grid grid-cols-2 gap-4">
-              {isFieldVisible('price') && (
+              {/* Descripción */}
+              {isFieldVisible('description') && (
                 <div>
                   <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                    Precio {isFieldRequired('price') && <span className="text-red-500">*</span>}
+                    Descripción {isFieldRequired('description') && <span className="text-red-500">*</span>}
                   </label>
-                  <input
-                    type="number"
-                    required={isFieldRequired('price')}
-                    min="0"
-                    step="0.01"
+                  <textarea
+                    rows={4}
+                    required={isFieldRequired('description')}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
-                  />
-                </div>
-              )}
-
-              {isFieldVisible('display_order') && (
-                <div>
-                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
-                    Orden de Visualización {isFieldRequired('display_order') && <span className="text-red-500">*</span>}
-                  </label>
-                  <input
-                    type="number"
-                    required={isFieldRequired('display_order')}
-                    min="0"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
-                    value={formData.display_order}
-                    onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
-                    placeholder="0"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Describe el producto..."
                   />
                 </div>
               )}
             </div>
 
-            {/* Disponible y Destacado */}
-            <div className="flex gap-6">
-              {isFieldVisible('is_available') && (
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                    checked={formData.is_available}
-                    onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Disponible</span>
-                </label>
-              )}
-
-              {isFieldVisible('is_featured') && (
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
-                    checked={formData.is_featured}
-                    onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Destacado</span>
-                </label>
-              )}
-            </div>
-          </div>
-
-          {/* Imagen */}
-          {isFieldVisible('image_url') && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Imagen del Producto</h3>
-              <ImageUpload
-                currentImageUrl={imagePreview || undefined}
-                onImageChange={onImageChange}
-                label="Imagen"
-              />
-            </div>
-          )}
-
-          {/* Variantes - Solo si el producto ya está creado y el campo es visible */}
-          {editingProduct && isFieldVisible('variant_groups') && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Variantes del Producto</h3>
-                <button
-                  type="button"
-                  onClick={addVariantGroup}
-                  className="px-3 py-1.5 text-xs font-normal text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-                >
-                  + Agregar Grupo de Variantes
-                </button>
+            {/* Media */}
+            {isFieldVisible('image_url') && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                  Media
+                </h3>
+                <ImageUpload
+                  currentImageUrl={imagePreview || undefined}
+                  onImageChange={onImageChange}
+                  label="Imagen del Producto"
+                />
               </div>
+            )}
 
-              {variantGroups.map((group, groupIndex) => (
-                <div key={groupIndex} className="mb-4 p-4 border border-gray-200 rounded">
+            {/* Variantes - Solo si el producto ya está creado y el campo es visible */}
+            {editingProduct && isFieldVisible('variant_groups') && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                  <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Variantes</h3>
+                  <button
+                    type="button"
+                    onClick={addVariantGroup}
+                    className="px-3 py-1.5 text-xs font-normal text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    + Agregar Grupo de Variantes
+                  </button>
+                </div>
+
+                {variantGroups.map((group, groupIndex) => (
+                  <div key={groupIndex} className="mb-4 p-4 border border-gray-200 rounded">
                   <div className="flex justify-between items-start mb-3">
                     <h4 className="text-sm font-normal text-gray-700">Grupo {groupIndex + 1}</h4>
                     <button
@@ -1083,10 +1091,12 @@ export function ProductForm({
             </div>
           )}
 
-          {/* Alérgenos - Solo si es visible para este tipo de producto */}
-          {isFieldVisible('allergens') && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Alérgenos</h3>
+            {/* Alérgenos */}
+            {isFieldVisible('allergens') && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                  Alérgenos
+                </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {commonAllergens.map((allergen) => (
                   <label key={allergen} className="flex items-center">
@@ -1100,13 +1110,15 @@ export function ProductForm({
                   </label>
                 ))}
               </div>
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* Información Nutricional - Solo si es visible para este tipo de producto */}
-          {isFieldVisible('nutritional_info') && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Información Nutricional (Opcional)</h3>
+            {/* Información Nutricional */}
+            {isFieldVisible('nutritional_info') && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                  Información Nutricional (Opcional)
+                </h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-normal text-gray-600 mb-1.5">Calorías</label>
@@ -1152,13 +1164,15 @@ export function ProductForm({
                 />
               </div>
             </div>
-          </div>
-          )}
+              </div>
+            )}
 
-          {/* Campos de Farmacia - Solo si es visible para este tipo de producto */}
-          {isFieldVisible('requires_prescription') && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide mb-4">Información de Farmacia</h3>
+            {/* Campos de Farmacia */}
+            {isFieldVisible('requires_prescription') && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                  Información de Farmacia
+                </h3>
               <div className="space-y-4">
                 {isFieldVisible('requires_prescription') && (
                   <label className="flex items-center">
@@ -1220,11 +1234,363 @@ export function ProductForm({
                   </label>
                 )}
               </div>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
-          {/* Botones */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+          {/* COLUMNA DERECHA - Organización y Configuración */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Organizar Producto */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                Organizar Producto
+              </h3>
+
+              {/* Tipo de Producto */}
+              {isFieldVisible('product_type') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Tipo de Producto {isFieldRequired('product_type') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    required={isFieldRequired('product_type')}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded bg-gray-50 text-gray-600"
+                    value={productTypes.find(t => t.value === formData.product_type)?.label || formData.product_type}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Gestionado por administradores</p>
+                </div>
+              )}
+
+              {/* Categoría */}
+              {isFieldVisible('category_id') && (
+                <div>
+                  <CategorySelector
+                    categories={categories}
+                    value={formData.category_id}
+                    onChange={(categoryId) => setFormData({ ...formData, category_id: categoryId })}
+                    required={isFieldRequired('category_id')}
+                    placeholder="Selecciona una categoría"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Disponibilidad */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                Disponibilidad
+              </h3>
+
+              <div className="space-y-3">
+                {isFieldVisible('is_available') && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                      checked={formData.is_available}
+                      onChange={(e) => setFormData({ ...formData, is_available: e.target.checked })}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Disponible</span>
+                  </label>
+                )}
+
+                {isFieldVisible('is_featured') && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                      checked={formData.is_featured}
+                      onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Destacado</span>
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Precio y Orden */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide border-b border-gray-200 pb-2">
+                Precio y Visualización
+              </h3>
+
+              {isFieldVisible('price') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Precio {isFieldRequired('price') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="number"
+                    required={isFieldRequired('price')}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
+
+              {isFieldVisible('display_order') && (
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-1.5">
+                    Orden de Visualización {isFieldRequired('display_order') && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="number"
+                    required={isFieldRequired('display_order')}
+                    min="0"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                    value={formData.display_order}
+                    onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Impuestos */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                <h3 className="text-sm font-medium text-gray-700 uppercase tracking-wide">Impuestos</h3>
+                {loadingTaxes && (
+                  <span className="text-xs text-gray-500">Cargando...</span>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {/* Selector de impuestos disponibles */}
+                <div>
+                  <label className="block text-xs font-normal text-gray-600 mb-2">
+                    Seleccionar Impuestos
+                  </label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded p-3">
+                    {availableTaxTypes.length === 0 ? (
+                      <p className="text-xs text-gray-500">No hay tipos de impuestos disponibles. Contacta al administrador.</p>
+                    ) : (
+                      availableTaxTypes.map((taxType) => {
+                        const isSelected = productTaxes.some(pt => pt.tax_type_id === taxType.id);
+                        return (
+                          <label
+                            key={taxType.id}
+                            className="flex items-start p-2 rounded hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  // Agregar impuesto
+                                  setProductTaxes([
+                                    ...productTaxes,
+                                    {
+                                      id: '',
+                                      product_id: editingProduct?.id || '',
+                                      tax_type_id: taxType.id,
+                                      display_order: productTaxes.length,
+                                      created_at: '',
+                                      tax_name: taxType.name,
+                                      default_rate: taxType.rate,
+                                      rate_type: taxType.rate_type,
+                                      default_fixed_amount: taxType.fixed_amount,
+                                    },
+                                  ]);
+                                } else {
+                                  // Remover impuesto
+                                  setProductTaxes(productTaxes.filter(pt => pt.tax_type_id !== taxType.id));
+                                }
+                              }}
+                            />
+                            <div className="ml-2 flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-900">{taxType.name}</span>
+                                {taxType.is_default && (
+                                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Por defecto</span>
+                                )}
+                              </div>
+                              {taxType.description && (
+                                <p className="text-xs text-gray-500 mt-0.5">{taxType.description}</p>
+                              )}
+                              <p className="text-xs text-gray-600 mt-1">
+                                {taxType.rate_type === 'percentage' 
+                                  ? `${(taxType.rate * 100).toFixed(2)}%`
+                                  : `$${taxType.fixed_amount?.toFixed(2) || '0.00'}`}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Lista de impuestos asignados con opción de override */}
+                {productTaxes.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-normal text-gray-600 mb-2">
+                      Impuestos Asignados
+                    </label>
+                    <div className="space-y-3">
+                      {productTaxes.map((productTax, index) => {
+                        const taxType = availableTaxTypes.find(t => t.id === productTax.tax_type_id);
+                        if (!taxType) return null;
+
+                        const effectiveRate = productTax.override_rate ?? productTax.default_rate ?? taxType.rate;
+                        const effectiveFixed = productTax.override_fixed_amount ?? productTax.default_fixed_amount ?? taxType.fixed_amount;
+
+                        return (
+                          <div key={productTax.tax_type_id} className="p-3 border border-gray-200 rounded bg-gray-50">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-900">{productTax.tax_name || taxType.name}</span>
+                                  {productTax.override_rate !== undefined && (
+                                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Override</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {taxType.rate_type === 'percentage' 
+                                    ? `Tasa: ${(effectiveRate * 100).toFixed(2)}%`
+                                    : `Monto fijo: $${effectiveFixed?.toFixed(2) || '0.00'}`}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setProductTaxes(productTaxes.filter((_, i) => i !== index))}
+                                className="text-gray-400 hover:text-gray-600"
+                                title="Eliminar impuesto"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* Opción de override para impuestos de tipo percentage */}
+                            {taxType.rate_type === 'percentage' && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <label className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3 w-3 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                                    checked={productTax.override_rate !== undefined}
+                                    onChange={(e) => {
+                                      const updated = [...productTaxes];
+                                      if (e.target.checked) {
+                                        updated[index].override_rate = taxType.rate;
+                                      } else {
+                                        updated[index].override_rate = undefined;
+                                      }
+                                      setProductTaxes(updated);
+                                    }}
+                                  />
+                                  <span className="ml-2 text-xs text-gray-600">Personalizar porcentaje</span>
+                                </label>
+                                {productTax.override_rate !== undefined && (
+                                  <div className="mt-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="1"
+                                      step="0.0001"
+                                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                                      value={productTax.override_rate}
+                                      onChange={(e) => {
+                                        const value = parseFloat(e.target.value);
+                                        if (!isNaN(value) && value >= 0 && value <= 1) {
+                                          const updated = [...productTaxes];
+                                          updated[index].override_rate = value;
+                                          setProductTaxes(updated);
+                                        }
+                                      }}
+                                      placeholder={`${(taxType.rate * 100).toFixed(2)}%`}
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {(productTax.override_rate * 100).toFixed(2)}% 
+                                      {productTax.override_rate !== taxType.rate && (
+                                        <span className="ml-1">
+                                          (por defecto: {(taxType.rate * 100).toFixed(2)}%)
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Opción de override para impuestos de tipo fixed */}
+                            {taxType.rate_type === 'fixed' && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <label className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3 w-3 rounded border-gray-300 text-gray-600 focus:ring-gray-400"
+                                    checked={productTax.override_fixed_amount !== undefined}
+                                    onChange={(e) => {
+                                      const updated = [...productTaxes];
+                                      if (e.target.checked) {
+                                        updated[index].override_fixed_amount = taxType.fixed_amount || 0;
+                                      } else {
+                                        updated[index].override_fixed_amount = undefined;
+                                      }
+                                      setProductTaxes(updated);
+                                    }}
+                                  />
+                                  <span className="ml-2 text-xs text-gray-600">Personalizar monto fijo</span>
+                                </label>
+                                {productTax.override_fixed_amount !== undefined && (
+                                  <div className="mt-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400"
+                                      value={productTax.override_fixed_amount}
+                                      onChange={(e) => {
+                                        const value = parseFloat(e.target.value);
+                                        if (!isNaN(value) && value >= 0) {
+                                          const updated = [...productTaxes];
+                                          updated[index].override_fixed_amount = value;
+                                          setProductTaxes(updated);
+                                        }
+                                      }}
+                                      placeholder={`$${taxType.fixed_amount?.toFixed(2) || '0.00'}`}
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      ${productTax.override_fixed_amount.toFixed(2)}
+                                      {productTax.override_fixed_amount !== taxType.fixed_amount && (
+                                        <span className="ml-1">
+                                          (por defecto: ${taxType.fixed_amount?.toFixed(2) || '0.00'})
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {productTaxes.length === 0 && (
+                  <p className="text-xs text-gray-500 italic">
+                    No hay impuestos asignados. Los impuestos se aplicarán según la configuración del administrador.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Botones */}
+        <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={onCancel}

@@ -9,8 +9,10 @@ import MobileLayout from '@/components/layout/MobileLayout';
 import { useI18n } from '@/contexts/I18nContext';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CartItem } from '@/lib/cart';
+import { CartItem, TaxBreakdown } from '@/lib/cart';
 import { productsService, Product, ProductVariantGroup, ProductVariant } from '@/lib/products';
+import { taxesService } from '@/lib/taxes';
+import TaxBreakdownComponent from '@/components/TaxBreakdown';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -25,6 +27,8 @@ export default function CartPage() {
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [productsData, setProductsData] = useState<Record<string, Product>>({});
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [itemsTaxBreakdowns, setItemsTaxBreakdowns] = useState<Record<string, TaxBreakdown>>({});
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
 
   // Redirigir a login si no está autenticado
   useEffect(() => {
@@ -72,6 +76,39 @@ export default function CartPage() {
       };
       
       loadProducts();
+    }
+  }, [cart]);
+
+  // Calcular impuestos para cada item del carrito
+  useEffect(() => {
+    if (cart && cart.items && cart.items.length > 0) {
+      const calculateTaxes = async () => {
+        setLoadingTaxes(true);
+        try {
+          const taxBreakdowns: Record<string, TaxBreakdown> = {};
+          
+          await Promise.all(
+            cart.items.map(async (item: CartItem) => {
+              try {
+                const subtotal = parseFloat(String(item.item_subtotal || 0));
+                const taxBreakdown = await taxesService.calculateProductTaxes(item.product_id, subtotal);
+                taxBreakdowns[item.id] = taxBreakdown;
+              } catch (error) {
+                console.error(`Error calculando impuestos para item ${item.id}:`, error);
+                taxBreakdowns[item.id] = { taxes: [], total_tax: 0 };
+              }
+            })
+          );
+          
+          setItemsTaxBreakdowns(taxBreakdowns);
+        } catch (error) {
+          console.error('Error calculando impuestos:', error);
+        } finally {
+          setLoadingTaxes(false);
+        }
+      };
+      
+      calculateTaxes();
     }
   }, [cart]);
 
@@ -166,9 +203,13 @@ export default function CartPage() {
   }
 
   const subtotal = parseFloat(cart.subtotal || '0');
-  const tax = 0; // IVA (puede calcularse después)
+  // Calcular total de impuestos sumando los impuestos de cada item
+  const totalTax = Object.values(itemsTaxBreakdowns).reduce(
+    (sum, breakdown) => sum + (breakdown?.total_tax || 0),
+    0
+  );
   const deliveryFee = 0; // Costo de envío (puede calcularse después)
-  const total = subtotal + tax + deliveryFee;
+  const total = subtotal + totalTax + deliveryFee;
 
   return (
     <>
@@ -251,11 +292,29 @@ export default function CartPage() {
                       </p>
                     )}
 
+                    {/* Impuestos del producto */}
+                    {itemsTaxBreakdowns[item.id] && itemsTaxBreakdowns[item.id].total_tax > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <TaxBreakdownComponent
+                          taxBreakdown={itemsTaxBreakdowns[item.id]}
+                          showTotal={false}
+                          compact={true}
+                        />
+                      </div>
+                    )}
+
                     {/* Precio y cantidad */}
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-lg font-bold text-black">
-                        ${parseFloat(String(item.item_subtotal || 0)).toFixed(2)}
-                      </span>
+                      <div>
+                        <span className="text-lg font-bold text-black">
+                          ${parseFloat(String(item.item_subtotal || 0)).toFixed(2)}
+                        </span>
+                        {itemsTaxBreakdowns[item.id] && itemsTaxBreakdowns[item.id].total_tax > 0 && (
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            + ${itemsTaxBreakdowns[item.id].total_tax.toFixed(2)} impuestos
+                          </div>
+                        )}
+                      </div>
                       
                       {/* Controles de cantidad */}
                       <div className="flex items-center gap-2">
@@ -300,10 +359,20 @@ export default function CartPage() {
                 <span className="text-gray-600">Subtotal</span>
                 <span className="text-black font-medium">${subtotal.toFixed(2)}</span>
               </div>
-              {tax > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">IVA</span>
-                  <span className="text-black font-medium">${tax.toFixed(2)}</span>
+              {totalTax > 0 && (
+                <div className="space-y-1 pl-2 border-l-2 border-gray-200">
+                  {Object.values(itemsTaxBreakdowns).flatMap(breakdown => 
+                    breakdown?.taxes?.map(tax => (
+                      <div key={tax.tax_type_id} className="flex justify-between text-xs">
+                        <span className="text-gray-500">{tax.tax_name} ({(tax.rate * 100).toFixed(0)}%)</span>
+                        <span className="text-gray-600">${tax.amount.toFixed(2)}</span>
+                      </div>
+                    )) || []
+                  )}
+                  <div className="flex justify-between text-sm pt-1 border-t border-gray-100 mt-1">
+                    <span className="text-gray-600 font-medium">Total impuestos</span>
+                    <span className="text-black font-medium">${totalTax.toFixed(2)}</span>
+                  </div>
                 </div>
               )}
               {deliveryFee > 0 && (
