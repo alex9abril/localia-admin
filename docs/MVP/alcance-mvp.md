@@ -233,15 +233,15 @@ graph TB
 - ✅ Visualización de historial de entregas
 - ✅ Gestión de pagos a repartidores
 
-#### App Repartidor Móvil/Web (⏳ Fase 2)
-- ⏳ App móvil/web específica para repartidores
-- ⏳ Aceptar/rechazar entregas desde la app
-- ⏳ Actualizar estado de entrega desde la app
-- ⏳ Navegación y rutas integradas
-- ⏳ Tracking GPS en tiempo real
-- ⏳ Visualización de ganancias en la app
+#### App Repartidor Móvil/Web (✅ Parte del MVP - Desarrollo posterior)
+- ✅ App móvil/web específica para repartidores
+- ✅ Aceptar/rechazar entregas desde la app
+- ✅ Actualizar estado de entrega desde la app
+- ✅ Navegación y rutas integradas
+- ✅ Tracking GPS en tiempo real
+- ✅ Visualización de ganancias en la app
 
-> **Nota:** La **gestión de repartidores** está incluida en el MVP desde el Panel Admin y Local. La **app móvil/web específica para repartidores** queda para **Fase 2**.
+> **Nota:** La **app móvil/web para repartidores** es parte del alcance del MVP, pero **no se inicia su desarrollo en la fase inicial**. El desarrollo comenzará después de poner en marcha las funcionalidades core (Web Cliente, Web Local, Web Admin). La **gestión de repartidores** desde los paneles Admin y Local está incluida desde el inicio del MVP.
 
 ---
 
@@ -415,18 +415,13 @@ sequenceDiagram
 - ✅ **Web Cliente** - Completa
 - ✅ **Web Local** - Completa (con roles diferenciados)
 - ✅ **Web Admin** - Completa
+- ✅ **App Repartidor Móvil/Web** - Parte del MVP (desarrollo posterior al inicio)
+
+> **Nota sobre App Repartidor:** Aunque la app móvil/web para repartidores es parte del alcance del MVP, su desarrollo se iniciará después de poner en marcha las funcionalidades core. Mientras tanto, la gestión de repartidores se realiza desde los paneles Admin y Local.
 
 ---
 
 ### ⏳ **EXCLUIDO DEL MVP (Fase 2)**
-
-#### App Repartidor Móvil/Web
-- ⏳ App móvil/web específica para repartidores
-- ⏳ Sistema de asignación automática de pedidos
-- ⏳ Aceptar/rechazar entregas desde la app
-- ⏳ Navegación y rutas integradas
-- ⏳ Tracking GPS en tiempo real desde la app
-- ⏳ Notificaciones push para repartidores
 
 #### Funcionalidades Avanzadas
 - ⏳ Chat en tiempo real (cliente-repartidor-local)
@@ -492,18 +487,18 @@ sequenceDiagram
 - El sistema recibe confirmaciones automáticas de la pasarela cuando se procesan pagos
 
 ### Repartidores en MVP
-- ✅ La **gestión de repartidores** está incluida en el MVP
+- ✅ La **gestión de repartidores** está incluida en el MVP desde el inicio
 - ✅ Los repartidores se pueden registrar y gestionar desde el Panel Admin
 - ✅ Las entregas se asignan y gestionan manualmente desde el Panel Local (Operations Staff)
 - ✅ Los estados de entrega (picked_up, in_transit, delivered) se actualizan desde el panel
-- ⏳ La **app móvil/web específica para repartidores** queda para Fase 2
+- ✅ La **app móvil/web específica para repartidores** es parte del MVP, pero su desarrollo se inicia después de poner en marcha las funcionalidades core
 
 ---
 
 ## 🎯 Próximos Pasos Post-MVP
 
-1. **Fase 2.0:** Sistema de métricas y analytics (desarrollo en paralelo mientras MVP está en marcha)
-2. **Fase 2.1:** App Repartidor móvil/web completa
+1. **Fase 1.5:** App Repartidor móvil/web (desarrollo posterior al inicio del MVP)
+2. **Fase 2.0:** Sistema de métricas y analytics (desarrollo en paralelo mientras MVP está en marcha)
 3. **Fase 2.2:** Chat en tiempo real
 4. **Fase 2.3:** Red social ecológica
 5. **Fase 2.4:** Sistema de membresías Premium
