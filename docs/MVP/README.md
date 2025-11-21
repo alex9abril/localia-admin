@@ -46,5 +46,5 @@ El documento principal incluye:
 
 ---
 
-**Última actualización:** Enero 2025
+**Última actualización:** Noviembre 2025
 
