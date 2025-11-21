@@ -81,18 +81,18 @@ Este diagrama sigue el estándar **BPMN 2.0** (Business Process Model and Notati
 - **Mensajes**: Líneas punteadas entre pools
 
 ```mermaid
-graph TB
-    subgraph PoolCliente["📱 POOL: CLIENTE"]
-        direction TB
+graph LR
+    subgraph PoolCliente["POOL: CLIENTE"]
+        direction LR
         Start([● Inicio<br/>Cliente inicia sesión])
-        Browse[Explorar negocios disponibles]
-        Select[Seleccionar negocio y productos]
-        Cart[Agregar productos al carrito]
-        Checkout[Iniciar proceso de checkout]
-        Address[Seleccionar dirección de entrega]
-        Delivery[Configurar entrega y propina]
-        Payment[Seleccionar método de pago]
-        Review[Dejar reseña y propina]
+        Browse[Explorar negocios]
+        Select[Seleccionar productos]
+        Cart[Agregar al carrito]
+        Checkout[Iniciar checkout]
+        Address[Seleccionar dirección]
+        Delivery[Configurar entrega]
+        Payment[Seleccionar pago]
+        Review[Dejar reseña]
         End([● Fin<br/>Pedido entregado])
         
         Start --> Browse
@@ -102,57 +102,59 @@ graph TB
         Checkout --> Address
         Address --> Delivery
         Delivery --> Payment
+        Payment --> Review
+        Review --> End
     end
     
-    subgraph PoolPasarela["💳 POOL: PASARELA DE PAGOS"]
-        direction TB
-        StartPasarela([● Inicio<br/>Solicitud de pago])
-        CreatePaymentIntent[Crear intención de pago]
-        ProcessCard[Procesar pago con tarjeta]
-        ConfirmPayment[Confirmar pago exitoso]
-        EndPasarela([● Fin<br/>Pago confirmado])
+    subgraph PoolPasarela["POOL: PASARELA DE PAGOS"]
+        direction LR
+        StartPasarela([● Inicio])
+        CreatePayment[Crear intención]
+        ProcessCard[Procesar tarjeta]
+        ConfirmPayment[Confirmar pago]
+        EndPasarela([● Fin])
         
-        StartPasarela --> CreatePaymentIntent
-        CreatePaymentIntent --> ProcessCard
+        StartPasarela --> CreatePayment
+        CreatePayment --> ProcessCard
         ProcessCard --> ConfirmPayment
         ConfirmPayment --> EndPasarela
     end
     
-    subgraph PoolWallet["💰 POOL: WALLET (Proyecto Externo)"]
-        direction TB
-        CheckBalance[Verificar balance de LocalCoins]
-        CreditLC[Acreditar LocalCoins]
-        DebitLC[Debitar LocalCoins del cliente]
-        RefundLC[Reembolsar LocalCoins]
-        PayLocal[Pagar al Local]
-        PayRepartidor[Pagar al Repartidor]
+    subgraph PoolWallet["POOL: WALLET"]
+        direction LR
+        CheckBalance[Verificar balance]
+        CreditLC[Acreditar LCs]
+        DebitLC[Debitar LCs]
+        RefundLC[Reembolsar]
+        PayLocal[Pagar Local]
+        PayRepartidor[Pagar Repartidor]
         PayTip[Pagar propina]
     end
     
-    subgraph PoolLocal["🏬 POOL: NEGOCIO LOCAL"]
-        direction TB
-        ReceiveOrder[Recibir notificación de pedido]
-        ViewOrder[Ver pedido pendiente]
-        AcceptDecision{◇ Gateway<br/>¿Acepta pedido?}
-        CancelOrder[Cancelar pedido]
-        ConfirmOrder[Confirmar pedido]
-        NotifyClient[Notificar cliente]
+    subgraph PoolLocal["POOL: NEGOCIO LOCAL"]
+        direction LR
+        ReceiveOrder[Recibir pedido]
+        ViewOrder[Ver pedido]
+        AcceptDecision{◇ ¿Acepta?}
+        CancelOrder[Cancelar]
+        ConfirmOrder[Confirmar]
+        NotifyClient[Notificar]
         
-        subgraph LaneOperations["┃ LANE: Operations Staff"]
-            OperationsView[Ver orden en panel operativo]
-            OperationsPrep[Poner en preparación]
-            OperationsReady[Marcar como listo]
+        subgraph LaneOperations["LANE: Operations"]
+            OperationsView[Ver orden]
+            OperationsPrep[Preparar]
+            OperationsReady[Listo]
         end
         
-        subgraph LaneKitchen["┃ LANE: Kitchen Staff (Opcional)"]
-            KitchenView[Ver orden confirmada]
-            StartPrep[Iniciar preparación]
-            FinishPrep[Terminar preparación]
+        subgraph LaneKitchen["LANE: Kitchen (Opcional)"]
+            KitchenView[Ver orden]
+            StartPrep[Iniciar prep]
+            FinishPrep[Terminar prep]
         end
         
-        AssignRepartidor[Asignar a repartidor]
-        MarkPickedUp[Marcar como recogido]
-        MarkDelivered[Marcar como entregado]
+        AssignRepartidor[Asignar]
+        MarkPickedUp[Recogido]
+        MarkDelivered[Entregado]
         
         ReceiveOrder --> ViewOrder
         ViewOrder --> AcceptDecision
@@ -169,13 +171,13 @@ graph TB
         OperationsReady --> AssignRepartidor
     end
     
-    subgraph PoolRepartidor["🚴 POOL: REPARTIDOR"]
-        direction TB
-        ViewAvailable[Ver pedidos disponibles]
-        AcceptDelivery{◇ Gateway<br/>¿Acepta entrega?}
-        PickUp[Recoger pedido]
-        InTransit[Actualizar: En camino]
-        Deliver[Entregar pedido]
+    subgraph PoolRepartidor["POOL: REPARTIDOR"]
+        direction LR
+        ViewAvailable[Ver disponibles]
+        AcceptDelivery{◇ ¿Acepta?}
+        PickUp[Recoger]
+        InTransit[En camino]
+        Deliver[Entregar]
         
         ViewAvailable --> AcceptDelivery
         AcceptDelivery -->|No| ViewAvailable
@@ -185,49 +187,47 @@ graph TB
     end
     
     %% Flujo principal de pago
-    Payment -.->|Mensaje: Solicitar verificación| CheckBalance
-    CheckBalance -->|Balance insuficiente| StartPasarela
-    StartPasarela -.->|Mensaje: Solicitar pago| Payment
-    EndPasarela -.->|Mensaje: Pago confirmado| CreditLC
-    CheckBalance -->|Balance suficiente| DebitLC
+    Payment -.->|Mensaje| CheckBalance
+    CheckBalance -->|Insuficiente| StartPasarela
+    StartPasarela -.->|Mensaje| Payment
+    EndPasarela -.->|Mensaje| CreditLC
+    CheckBalance -->|Suficiente| DebitLC
     CreditLC --> DebitLC
     
     %% Creación de pedido
-    DebitLC -.->|Mensaje: Pedido creado| ReceiveOrder
-    CancelOrder -.->|Mensaje: Cancelación| RefundLC
-    RefundLC -.->|Mensaje: Reembolso| Payment
+    DebitLC -.->|Mensaje| ReceiveOrder
+    CancelOrder -.->|Mensaje| RefundLC
+    RefundLC -.->|Mensaje| Payment
     
     %% Asignación a repartidor
-    AssignRepartidor -.->|Mensaje: Pedido disponible| ViewAvailable
-    PickUp -.->|Mensaje: Pedido recogido| MarkPickedUp
-    Deliver -.->|Mensaje: Pedido entregado| MarkDelivered
+    AssignRepartidor -.->|Mensaje| ViewAvailable
+    PickUp -.->|Mensaje| MarkPickedUp
+    Deliver -.->|Mensaje| MarkDelivered
     
     %% Pagos finales
-    MarkDelivered -.->|Mensaje: Solicitar pago| PayLocal
-    MarkDelivered -.->|Mensaje: Solicitar pago| PayRepartidor
-    MarkDelivered -.->|Mensaje: Solicitar propina| PayTip
+    MarkDelivered -.->|Mensaje| PayLocal
+    MarkDelivered -.->|Mensaje| PayRepartidor
+    MarkDelivered -.->|Mensaje| PayTip
     
     %% Finalización
-    PayLocal -.->|Mensaje: Pago completado| Review
-    PayRepartidor -.->|Mensaje: Pago completado| Review
-    PayTip -.->|Mensaje: Propina pagada| Review
-    Review --> End
+    PayLocal -.->|Mensaje| Review
+    PayRepartidor -.->|Mensaje| Review
+    PayTip -.->|Mensaje| Review
     
-    %% Estilos BPMN
-    style Start fill:#e1f5ff,stroke:#0066cc,stroke-width:3px
-    style End fill:#d4edda,stroke:#28a745,stroke-width:3px
-    style StartPasarela fill:#e1f5ff,stroke:#0066cc,stroke-width:3px
-    style EndPasarela fill:#d4edda,stroke:#28a745,stroke-width:3px
-    style AcceptDecision fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-    style AcceptDelivery fill:#fff3cd,stroke:#ffc107,stroke-width:3px
-    style CheckBalance fill:#fff3cd,stroke:#ffc107,stroke-width:2px
-    style PoolWallet fill:#fff9e6,stroke:#ffc107,stroke-width:4px
-    style PoolPasarela fill:#e6f3ff,stroke:#0066cc,stroke-width:4px
-    style PoolCliente fill:#e6f7ff,stroke:#0066cc,stroke-width:4px
-    style PoolLocal fill:#e6ffe6,stroke:#28a745,stroke-width:4px
-    style PoolRepartidor fill:#ffe6f0,stroke:#e91e63,stroke-width:4px
-    style LaneOperations fill:#f0f8f0,stroke:#28a745,stroke-width:2px
-    style LaneKitchen fill:#fff8e6,stroke:#ffc107,stroke-width:2px
+    %% Estilos sutiles
+    style Start fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style End fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style StartPasarela fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style EndPasarela fill:#f5f5f5,stroke:#333,stroke-width:2px
+    style AcceptDecision fill:#e8e8e8,stroke:#666,stroke-width:2px
+    style AcceptDelivery fill:#e8e8e8,stroke:#666,stroke-width:2px
+    style PoolWallet fill:#fafafa,stroke:#999,stroke-width:2px
+    style PoolPasarela fill:#fafafa,stroke:#999,stroke-width:2px
+    style PoolCliente fill:#fafafa,stroke:#999,stroke-width:2px
+    style PoolLocal fill:#fafafa,stroke:#999,stroke-width:2px
+    style PoolRepartidor fill:#fafafa,stroke:#999,stroke-width:2px
+    style LaneOperations fill:#f0f0f0,stroke:#bbb,stroke-width:1px
+    style LaneKitchen fill:#f0f0f0,stroke:#bbb,stroke-width:1px
 ```
 
 ---
