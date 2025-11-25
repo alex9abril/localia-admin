@@ -84,11 +84,16 @@ export default function ProductsPage() {
 
   const loadTaxTypes = async () => {
     try {
+      setLoadingTaxes(true);
       const taxTypes = await taxesService.getTaxTypes(false);
-      setAvailableTaxTypes(taxTypes);
+      // Asegurar que siempre sea un array
+      setAvailableTaxTypes(Array.isArray(taxTypes) ? taxTypes : []);
     } catch (err: any) {
       console.error('Error cargando tipos de impuestos:', err);
-      // No mostrar error al usuario, solo log
+      // Asegurar que siempre sea un array, incluso si hay error
+      setAvailableTaxTypes([]);
+    } finally {
+      setLoadingTaxes(false);
     }
   };
 
@@ -121,6 +126,11 @@ export default function ProductsPage() {
       const config = await productsService.getFieldConfigByProductType(productType);
       setFieldConfig(config);
       setSelectedProductType(productType);
+      
+      // Asegurar que los tipos de impuestos estén cargados
+      if (!availableTaxTypes || availableTaxTypes.length === 0) {
+        await loadTaxTypes();
+      }
       
       // Inicializar formulario con el tipo seleccionado
       setFormData({
@@ -1368,8 +1378,12 @@ export function ProductForm({
                     Seleccionar Impuestos
                   </label>
                   <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded p-3">
-                    {availableTaxTypes.length === 0 ? (
-                      <p className="text-xs text-gray-500">No hay tipos de impuestos disponibles. Contacta al administrador.</p>
+                    {!availableTaxTypes || availableTaxTypes.length === 0 ? (
+                      <p className="text-xs text-gray-500">
+                        {loadingTaxes 
+                          ? 'Cargando tipos de impuestos...' 
+                          : 'No hay tipos de impuestos disponibles. Contacta al administrador.'}
+                      </p>
                     ) : (
                       availableTaxTypes.map((taxType) => {
                         const isSelected = productTaxes.some(pt => pt.tax_type_id === taxType.id);
@@ -1391,7 +1405,7 @@ export function ProductForm({
                                       id: '',
                                       product_id: editingProduct?.id || '',
                                       tax_type_id: taxType.id,
-                                      display_order: productTaxes.length,
+                                      display_order: productTaxes?.length || 0,
                                       created_at: '',
                                       tax_name: taxType.name,
                                       default_rate: taxType.rate,
@@ -1429,14 +1443,14 @@ export function ProductForm({
                 </div>
 
                 {/* Lista de impuestos asignados con opción de override */}
-                {productTaxes.length > 0 && (
+                {productTaxes && productTaxes.length > 0 && (
                   <div>
                     <label className="block text-xs font-normal text-gray-600 mb-2">
                       Impuestos Asignados
                     </label>
                     <div className="space-y-3">
-                      {productTaxes.map((productTax, index) => {
-                        const taxType = availableTaxTypes.find(t => t.id === productTax.tax_type_id);
+                      {productTaxes && productTaxes.map((productTax, index) => {
+                        const taxType = availableTaxTypes?.find(t => t.id === productTax.tax_type_id);
                         if (!taxType) return null;
 
                         const effectiveRate = productTax.override_rate ?? productTax.default_rate ?? taxType.rate;
@@ -1579,7 +1593,7 @@ export function ProductForm({
                   </div>
                 )}
 
-                {productTaxes.length === 0 && (
+                {(!productTaxes || productTaxes.length === 0) && (
                   <p className="text-xs text-gray-500 italic">
                     No hay impuestos asignados. Los impuestos se aplicarán según la configuración del administrador.
                   </p>
